@@ -553,7 +553,11 @@ bool DBConn::insertModule(const string &ProjectName,
     string identifier(module->getModuleIdentifier());
     string ir_mod_buffer;
     llvm::raw_string_ostream rso(ir_mod_buffer);
+     #if LLVM_VERSION_MAJOR < 7
     llvm::WriteBitcodeToFile(module, rso);
+    #else
+    llvm::WriteBitcodeToFile(*module, rso);
+    #endif
     rso.flush();
     istringstream ist(ir_mod_buffer);
     size_t hash_value = hash<string>()(ir_mod_buffer);
