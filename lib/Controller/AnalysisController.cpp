@@ -49,6 +49,7 @@
 #include <phasar/PhasarLLVM/Plugins/PluginFactories.h>
 #include <phasar/PhasarLLVM/Pointer/LLVMTypeHierarchy.h>
 #include <phasar/PhasarLLVM/Pointer/VTable.h>
+#include <phasar/PhasarLLVM/Utils/TaintConfiguration.h>
 
 using namespace std;
 using namespace psr;
@@ -75,9 +76,10 @@ AnalysisController::AnalysisController(
   // Check if the chosen entry points are valid
   LOG_IF_ENABLE(BOOST_LOG_SEV(lg, INFO) << "Check for chosen entry points.");
   vector<string> EntryPoints = {"main"};
-  if (VariablesMap.count("entry-points")) {
+  if (PhasarConfig::VariablesMap().count("entry-points")) {
     std::vector<std::string> invalidEntryPoints;
-    for (auto &entryPoint : VariablesMap["entry-points"].as<vector<string>>()) {
+    for (auto &entryPoint :
+         PhasarConfig::VariablesMap()["entry-points"].as<vector<string>>()) {
       if (IRDB.getFunction(entryPoint) == nullptr) {
         invalidEntryPoints.push_back(entryPoint);
       }
@@ -90,25 +92,38 @@ AnalysisController::AnalysisController(
       }
       throw logic_error("invalid entry points");
     }
-    if (VariablesMap["entry-points"].as<vector<string>>().size()) {
-      EntryPoints = VariablesMap["entry-points"].as<vector<string>>();
+    if (PhasarConfig::VariablesMap()["entry-points"]
+            .as<vector<string>>()
+            .size()) {
+      EntryPoints =
+          PhasarConfig::VariablesMap()["entry-points"].as<vector<string>>();
     }
   }
   if (WPA_MODE) {
     // here we link every llvm module into a single module containing the entire
     // IR
-    LOG_IF_ENABLE(
-        BOOST_LOG_SEV(lg, INFO)
-        << "link all llvm modules into a single module for WPA ...\n");
+    LOG_IF_ENABLE(BOOST_LOG_SEV(lg, INFO)
+                  << "link all llvm modules into a single module for WPA ...");
+    LOG_IF_ENABLE(BOOST_LOG_SEV(lg, INFO) << " ");
     START_TIMER("Link to WPA Module", PAMM_SEVERITY_LEVEL::Full);
     IRDB.linkForWPA();
     STOP_TIMER("Link to WPA Module", PAMM_SEVERITY_LEVEL::Full);
     LOG_IF_ENABLE(
         BOOST_LOG_SEV(lg, INFO)
-        << "link all llvm modules into a single module for WPA ended\n");
+        << "link all llvm modules into a single module for WPA ended");
+    LOG_IF_ENABLE(BOOST_LOG_SEV(lg, INFO) << " ");
   }
   IRDB.preprocessIR();
 
+  // output (shortend) IR with ID annotations
+  if (PhasarConfig::VariablesMap().count("emit-ir")) {
+    LOG_IF_ENABLE(BOOST_LOG_SEV(lg, INFO)
+                  << "Emit pre-processed and annotated IR module(s) as "
+                     "'annotated-ir.ll'");
+    std::ofstream irFile("annotated-ir.ll", std::ios::binary);
+    IRDB.emitPreprocessedIR(irFile, true);
+    irFile.close();
+  }
   // START_TIMER("DB Start Up", PAMM_SEVERITY_LEVEL::Full);
   // DBConn &db = DBConn::getInstance();
   // STOP_TIMER("DB Start Up", PAMM_SEVERITY_LEVEL::Full);
@@ -147,16 +162,16 @@ AnalysisController::AnalysisController(
   //
   // ofs_ch << CHJson.dump();
   // WARNING
-  // if (VariablesMap.count("classhierarchy_analysis")) {
+  // if (PhasarConfig::VariablesMap().count("classhierarchy_analysis")) {
   //   CH.print();
   //   CH.printAsDot("ch.dot");
   // }
 
   // Call graph construction stategy
   CallGraphAnalysisType CGType(
-      (VariablesMap.count("callgraph-analysis"))
+      (PhasarConfig::VariablesMap().count("callgraph-analysis"))
           ? wise_enum::from_string<CallGraphAnalysisType>(
-                VariablesMap["callgraph-analysis"].as<string>())
+                PhasarConfig::VariablesMap()["callgraph-analysis"].as<string>())
                 .value()
           : CallGraphAnalysisType::OTF);
   // Perform whole program analysis (WPA) analysis
@@ -164,7 +179,7 @@ AnalysisController::AnalysisController(
     START_TIMER("CG Construction", PAMM_SEVERITY_LEVEL::Core);
     LLVMBasedICFG ICFG(CH, IRDB, CGType, EntryPoints);
 
-    if (VariablesMap.count("callgraph-plugin")) {
+    if (PhasarConfig::VariablesMap().count("callgraph-plugin")) {
       throw runtime_error("callgraph plugin not found");
     }
     STOP_TIMER("CG Construction", PAMM_SEVERITY_LEVEL::Core);
@@ -172,12 +187,12 @@ AnalysisController::AnalysisController(
     // Add the ICFG to final results
 
     // FinalResultsJson += ICFG.getAsJson();
-    // if (VariablesMap.count("callgraph-analysis")) {
+    // if (PhasarConfig::VariablesMap().count("callgraph-analysis")) {
     //   ICFG.print();
     //   ICFG.printAsDot("icfg.dot");
     // }
     // FinalResultsJson += ICFG.getWholeModulePTG().getAsJson();
-    // if (VariablesMap.count("pointer-analysis")) {
+    // if (PhasarConfig::VariablesMap().count("pointer-analysis")) {
     //   ICFG.getWholeModulePTG().print();
     //   ICFG.getWholeModulePTG().printAsDot("wptg.dot");
     // }
@@ -192,11 +207,11 @@ AnalysisController::AnalysisController(
                     << "Performing analysis: " << analysis);
       switch (analysis) {
       case DataFlowAnalysisType::IFDS_TaintAnalysis: {
-        TaintSensitiveFunctions TSF;
+        TaintConfiguration<const llvm::Value *> TSF;
         IFDSTaintAnalysis TaintAnalysisProblem(ICFG, CH, IRDB, TSF,
                                                EntryPoints);
         LLVMIFDSSolver<const llvm::Value *, LLVMBasedICFG &> LLVMTaintSolver(
-            TaintAnalysisProblem, false);
+            TaintAnalysisProblem);
         cout << "IFDS Taint Analysis ..." << endl;
         LLVMTaintSolver.solve();
         cout << "IFDS Taint Analysis ended" << endl;
@@ -209,7 +224,7 @@ AnalysisController::AnalysisController(
       case DataFlowAnalysisType::IDE_TaintAnalysis: {
         IDETaintAnalysis taintanalysisproblem(ICFG, CH, IRDB, EntryPoints);
         LLVMIDESolver<const llvm::Value *, const llvm::Value *, LLVMBasedICFG &>
-            llvmtaintsolver(taintanalysisproblem, true);
+            llvmtaintsolver(taintanalysisproblem);
         llvmtaintsolver.solve();
         FinalResultsJson += llvmtaintsolver.getAsJson();
         if (PrintEdgeRecorder) {
@@ -222,7 +237,7 @@ AnalysisController::AnalysisController(
         IDETypeStateAnalysis typestateproblem(ICFG, CH, IRDB, fileIODesc,
                                               EntryPoints);
         LLVMIDESolver<const llvm::Value *, int, LLVMBasedICFG &>
-            llvmtypestatesolver(typestateproblem, true);
+            llvmtypestatesolver(typestateproblem);
         llvmtypestatesolver.solve();
         FinalResultsJson += llvmtypestatesolver.getAsJson();
         if (PrintEdgeRecorder) {
@@ -233,7 +248,7 @@ AnalysisController::AnalysisController(
       case DataFlowAnalysisType::IFDS_TypeAnalysis: {
         IFDSTypeAnalysis typeanalysisproblem(ICFG, CH, IRDB, EntryPoints);
         LLVMIFDSSolver<const llvm::Value *, LLVMBasedICFG &> llvmtypesolver(
-            typeanalysisproblem, true);
+            typeanalysisproblem);
         llvmtypesolver.solve();
         FinalResultsJson += llvmtypesolver.getAsJson();
         if (PrintEdgeRecorder) {
@@ -242,10 +257,10 @@ AnalysisController::AnalysisController(
         break;
       }
       case DataFlowAnalysisType::IFDS_UninitializedVariables: {
-        IFDSUnitializedVariables uninitializedvarproblem(ICFG, CH, IRDB,
-                                                         EntryPoints);
+        IFDSUninitializedVariables uninitializedvarproblem(ICFG, CH, IRDB,
+                                                           EntryPoints);
         LLVMIFDSSolver<const llvm::Value *, LLVMBasedICFG &> llvmunivsolver(
-            uninitializedvarproblem, false);
+            uninitializedvarproblem);
         cout << "IFDS UninitVar Analysis ..." << endl;
         llvmunivsolver.solve();
         cout << "IFDS UninitVar Analysis ended" << endl;
@@ -257,8 +272,7 @@ AnalysisController::AnalysisController(
       }
       case DataFlowAnalysisType::IFDS_LinearConstantAnalysis: {
         IFDSLinearConstantAnalysis lcaproblem(ICFG, CH, IRDB, EntryPoints);
-        LLVMIFDSSolver<LCAPair, LLVMBasedICFG &> llvmlcasolver(lcaproblem,
-                                                               true);
+        LLVMIFDSSolver<LCAPair, LLVMBasedICFG &> llvmlcasolver(lcaproblem);
         llvmlcasolver.solve();
         FinalResultsJson += llvmlcasolver.getAsJson();
         if (PrintEdgeRecorder) {
@@ -269,7 +283,7 @@ AnalysisController::AnalysisController(
       case DataFlowAnalysisType::IDE_LinearConstantAnalysis: {
         IDELinearConstantAnalysis lcaproblem(ICFG, CH, IRDB, EntryPoints);
         LLVMIDESolver<const llvm::Value *, int64_t, LLVMBasedICFG &>
-            llvmlcasolver(lcaproblem, true);
+            llvmlcasolver(lcaproblem);
         llvmlcasolver.solve();
         FinalResultsJson += llvmlcasolver.getAsJson();
         if (PrintEdgeRecorder) {
@@ -281,7 +295,7 @@ AnalysisController::AnalysisController(
         IFDSConstAnalysis constproblem(
             ICFG, CH, IRDB, IRDB.getAllMemoryLocations(), EntryPoints);
         LLVMIFDSSolver<const llvm::Value *, LLVMBasedICFG &> llvmconstsolver(
-            constproblem, true);
+            constproblem);
         llvmconstsolver.solve();
         FinalResultsJson += llvmconstsolver.getAsJson();
         if (PrintEdgeRecorder) {
@@ -292,7 +306,7 @@ AnalysisController::AnalysisController(
       case DataFlowAnalysisType::IFDS_SolverTest: {
         IFDSSolverTest ifdstest(ICFG, CH, IRDB, EntryPoints);
         LLVMIFDSSolver<const llvm::Value *, LLVMBasedICFG &> llvmifdstestsolver(
-            ifdstest, false);
+            ifdstest);
         cout << "IFDS Solvertest ..." << endl;
         llvmifdstestsolver.solve();
         cout << "IFDS Solvertest ended" << endl;
@@ -303,10 +317,11 @@ AnalysisController::AnalysisController(
         break;
       }
       case DataFlowAnalysisType::IFDS_EnvironmentVariableTracing: {
-        IFDSEnvironmentVariableTracing variableTracing(ICFG, EntryPoints);
+        TaintConfiguration<ExtendedValue> TaintConfig;
+        IFDSEnvironmentVariableTracing variableTracing(ICFG, TaintConfig,
+                                                       EntryPoints);
         LLVMIFDSSolver<ExtendedValue, LLVMBasedICFG &> llvmifdsenvsolver(
-            variableTracing, false);
-
+            variableTracing);
         cout << "IFDS EnvironmentVariableTracing ..." << endl;
         llvmifdsenvsolver.solve();
         cout << "IFDS EnvironmentVariableTracing ended" << endl;
@@ -319,7 +334,7 @@ AnalysisController::AnalysisController(
       case DataFlowAnalysisType::IDE_SolverTest: {
         IDESolverTest idetest(ICFG, CH, IRDB, EntryPoints);
         LLVMIDESolver<const llvm::Value *, const llvm::Value *, LLVMBasedICFG &>
-            llvmidetestsolver(idetest, true);
+            llvmidetestsolver(idetest);
         llvmidetestsolver.solve();
         FinalResultsJson += llvmidetestsolver.getAsJson();
         if (PrintEdgeRecorder) {
@@ -331,30 +346,28 @@ AnalysisController::AnalysisController(
         const llvm::Function *F = IRDB.getFunction(EntryPoints.front());
         IntraMonoFullConstantPropagation intra(CFG, F);
         LLVMIntraMonoSolver<pair<const llvm::Value *, unsigned>, LLVMBasedCFG &>
-            solver(intra, true);
+            solver(intra);
         solver.solve();
         break;
       }
       case DataFlowAnalysisType::Intra_Mono_SolverTest: {
         const llvm::Function *F = IRDB.getFunction(EntryPoints.front());
         IntraMonoSolverTest intra(CFG, F);
-        LLVMIntraMonoSolver<const llvm::Value *, LLVMBasedCFG &> solver(intra,
-                                                                        true);
+        LLVMIntraMonoSolver<const llvm::Value *, LLVMBasedCFG &> solver(intra);
         solver.solve();
         break;
       }
       case DataFlowAnalysisType::Inter_Mono_SolverTest: {
         InterMonoSolverTest inter(ICFG, EntryPoints);
         LLVMInterMonoSolver<const llvm::Value *, LLVMBasedICFG &, 0> solver(
-            inter, true);
-
+            inter);
         solver.solve();
         break;
       }
       case DataFlowAnalysisType::Inter_Mono_TaintAnalysis: {
         InterMonoTaintAnalysis interMonoTaintProblem(ICFG, EntryPoints);
         LLVMInterMonoSolver<const llvm::Value *, LLVMBasedICFG &, 3> solver(
-            interMonoTaintProblem, true);
+            interMonoTaintProblem);
         cout << "Mono Taint Analysis ..." << endl;
         solver.solve();
         cout << "Mono Taint Analysis ended" << endl;
@@ -362,7 +375,8 @@ AnalysisController::AnalysisController(
       }
       case DataFlowAnalysisType::Plugin: {
         vector<string> AnalysisPlugins =
-            VariablesMap["analysis-plugin"].as<vector<string>>();
+            PhasarConfig::VariablesMap()["analysis-plugin"]
+                .as<vector<string>>();
 #ifdef PHASAR_PLUGINS_ENABLED
         AnalysisPluginController PluginController(
             AnalysisPlugins, ICFG, EntryPoints, FinalResultsJson);

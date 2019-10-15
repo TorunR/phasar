@@ -45,6 +45,8 @@ include("phasar_macros")
 
 option(PHASAR_BUILD_UNITTESTS "Build all tests (default is OFF)" OFF)
 
+option(PHASAR_BUILD_IR "Build IR test code (default is OFF)" OFF)
+
 option(PHASAR_BUILD_DOC "Build documentation" OFF)
 
 option(BUILD_SHARED_LIBS "Build shared libraries (default is ON)" ON)
@@ -136,26 +138,6 @@ if (NOT PHASAR_IN_TREE)
   link_directories(${LLVM_LIB_PATH} ${LLVM_LIBRARY_DIRS})
 endif()
 
-llvm_map_components_to_libnames(llvm_libs
-  coverage
-  coroutines
-  libdriver
-  lto
-  support
-  analysis
-  bitwriter
-  core
-  ipo
-  irreader
-  instcombine
-  instrumentation
-  linker
-  objcarcopts
-  scalaropts
-  transformutils
-  codegen
-  vectorize
-)
 add_definitions(${LLVM_DEFINITIONS})
 
 # Clang
@@ -201,27 +183,75 @@ set(CLANG_LIBRARIES
 add_subdirectory(include)
 add_subdirectory(lib)
 
+set(LLVM_LINK_COMPONENTS
+  coverage
+  coroutines
+  libdriver
+  lto
+  support
+  analysis
+  bitwriter
+  core
+  ipo
+  irreader
+  instcombine
+  instrumentation
+  linker
+  objcarcopts
+  scalaropts
+  transformutils
+  codegen
+  vectorize
+)
+
+llvm_map_components_to_libnames(llvm_libs
+  ${LLVM_LINK_COMPONENTS}
+)
+
 # Build a stand-alone executable
-add_executable(phasar
-  tools/phasar/phasar.cpp
-)
+if(PHASAR_IN_TREE)
+  add_phasar_executable(phasar
+    tools/phasar/phasar.cpp
+  )
 
-# Build a small test tool to show how phasar may be used
-add_executable(myphasartool
-  tools/phasar/myphasartool.cpp
-)
+  # Build a small test tool to show how phasar may be used
+  add_phasar_executable(myphasartool
+    tools/phasar/myphasartool.cpp
+  )
 
-add_executable(syncpdstest
-  tools/phasar/syncpdstest.cpp
-)
+  add_phasar_executable(syncpdstest
+    tools/phasar/syncpdstest.cpp
+  )
 
-add_executable(boomerangtest
-  tools/phasar/boomerangtest.cpp
-)
+  add_phasar_executable(boomerangtest
+    tools/phasar/boomerangtest.cpp
+  )
 
-add_executable(wpdstest
-  tools/phasar/wpdstest.cpp
-)
+  add_phasar_executable(wpdstest
+    tools/phasar/wpdstest.cpp
+  )
+else()
+  add_executable(phasar
+    tools/phasar/phasar.cpp
+  )
+
+  # Build a small test tool to show how phasar may be used
+  add_executable(myphasartool
+    tools/phasar/myphasartool.cpp
+  )
+
+  add_executable(syncpdstest
+    tools/phasar/syncpdstest.cpp
+  )
+
+  add_executable(boomerangtest
+    tools/phasar/boomerangtest.cpp
+  )
+
+  add_executable(wpdstest
+    tools/phasar/wpdstest.cpp
+  )
+endif()
 
 # Fix boost_thread dependency for MacOS
 if(APPLE)
@@ -241,19 +271,21 @@ endif()
 # Warning! There is a another listing of libraries inside cmake/phasar_macros.cmake.
 # If this list is altered the other one should be altered accordingly.
 target_link_libraries(phasar
+  LINK_PUBLIC
   phasar_config
   phasar_controller
+  phasar_controlflow
+  phasar_phasarllvm_utils
+  phasar_ifdside
+  phasar_utils
+  phasar_mono
   phasar_db
   phasar_experimental
   phasar_clang
-  phasar_controlflow
-  phasar_ifdside
-  phasar_mono
   phasar_passes
+
   ${PHASAR_PLUGINS_LIB}
   phasar_pointer
-  phasar_phasarllvm_utils
-  phasar_utils
   boost_program_options
   boost_filesystem
   boost_graph
@@ -265,12 +297,21 @@ target_link_libraries(phasar
   ${CMAKE_DL_LIBS}
   ${CMAKE_THREAD_LIBS_INIT}
   ${CLANG_LIBRARIES}
-  ${llvm_libs}
   curl
-  gtest
+)
+
+if(NOT PHASAR_IN_TREE)
+target_link_libraries(phasar
+  LINK_PUBLIC
+  ${llvm_libs}
+)
+endif()
+
+set(LLVM_LINK_COMPONENTS
 )
 
 target_link_libraries(myphasartool
+  LINK_PUBLIC
   phasar_config
   phasar_controller
   phasar_db
@@ -300,11 +341,10 @@ target_link_libraries(myphasartool
 )
 
 target_link_libraries(wpdstest
+  LINK_PUBLIC
   phasar_config
   phasar_controller
   phasar_db
-  phasar_experimental
-  phasar_clang
   phasar_controlflow
   phasar_ifdside
   phasar_mono
@@ -331,6 +371,7 @@ target_link_libraries(wpdstest
 )
 
 target_link_libraries(syncpdstest
+  LINK_PUBLIC
   phasar_config
   phasar_controller
   phasar_db
@@ -359,6 +400,7 @@ target_link_libraries(syncpdstest
 )
 
 target_link_libraries(boomerangtest
+  LINK_PUBLIC
   phasar_config
   phasar_controller
   phasar_db
@@ -386,11 +428,16 @@ target_link_libraries(boomerangtest
   ${llvm_libs}
 )
 
-# Add Phasar unittests and .ll file generation
+# Add Phasar unittests and build all IR test code
 if (PHASAR_BUILD_UNITTESTS)
   message("Phasar unittests")
   add_subdirectory(unittests)
-  message("Generation of .ll files")
+  set(PHASAR_BUILD_IR ON)
+endif()
+
+# Build all IR test code
+if (PHASAR_BUILD_IR)
+  message("Building IR test code")
   add_subdirectory(test)
 endif()
 
@@ -438,15 +485,15 @@ install(DIRECTORY config/
 #   $ export LD_LIBRARY_PATH=/lib:/usr/lib:/usr/local/lib:/home/philipp/Schreibtisch/tmp/lib
 #   $ sudo ldconfig
 #
-# Or even better: just link statically when trying to package Phasar
+# Or even better: just link statically when trying to package Phasar <- this is no longer possible
 
 # Settings for building various packages using Cpack
 #   How to pack using the following settings?
 #     $ mkdir build
 #     $ cd build
-#     $ cmake -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX=/usr/local ..
+#     $ cmake -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX=/usr/local ..
 #     $ cpack ..
-#     $ dpkg -i <the_package>.deb
+#     $ dpkg -i ./<the_package>.deb or better: apt-get install ./<the_package>.deb
 set(MAJOR_VERSION 1)
 set(MINOR_VERSION 0)
 set(PATCH_VERSION 0)
@@ -455,7 +502,9 @@ IF(EXISTS "${CMAKE_ROOT}/Modules/CPack.cmake")
 INCLUDE(InstallRequiredSystemLibraries)
 set(CPACK_SET_DESTDIR "on")
 set(CPACK_PACKAGING_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}")
-set(CPACK_GENERATOR "DEB")
+
+#set(CPACK_GENERATOR "DEB")
+set(CPACK_GENERATOR "RPM")
 set(CPACK_PACKAGE_DESCRIPTION "Phasar")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Phasar a LLVM-based static analysis framework")
 set(CPACK_PACKAGE_VENDOR "Phasar Team - Philipp Schubert and others")

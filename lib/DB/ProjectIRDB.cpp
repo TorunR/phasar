@@ -74,7 +74,8 @@ ProjectIRDB::ProjectIRDB(const std::vector<std::string> &IRFiles,
   for (const auto &File : IRFiles) {
     source_files.insert(File);
     // if we have a file that is already compiled to llvm ir
-    if (File.find(".ll") != File.npos && boost::filesystem::exists(File)) {
+    if ((File.find(".ll") != File.npos || File.find(".bc") != File.npos) &&
+        boost::filesystem::exists(File)) {
       llvm::SMDiagnostic Diag;
       std::unique_ptr<llvm::LLVMContext> C(new llvm::LLVMContext);
       std::unique_ptr<llvm::Module> M = llvm::parseIRFile(File, Diag, *C);
@@ -434,6 +435,50 @@ void ProjectIRDB::print() {
   for (auto entry : functionToModuleMap) {
     std::cout << entry.first << " defined in module " << entry.second
               << std::endl;
+  }
+}
+
+void ProjectIRDB::emitPreprocessedIR(std::ostream &os, bool shortenIR) {
+  for (auto &entry : modules) {
+    os << "IR module: " << entry.first << '\n';
+    // print globals
+    for (auto &glob : entry.second->globals()) {
+      if (shortenIR) {
+        os << llvmIRToShortString(&glob);
+      } else {
+        os << llvmIRToString(&glob);
+      }
+      os << '\n';
+    }
+    os << '\n';
+    for (auto F : getAllFunctions()) {
+      if (getModuleDefiningFunction(F->getName().str())
+              ->getModuleIdentifier() == entry.first) {
+        os << F->getName().str() << " {\n";
+        for (auto &BB : *F) {
+          // do not print the label of the first BB
+          if (BB.getPrevNode()) {
+            std::string BBLabel;
+            llvm::raw_string_ostream RSO(BBLabel);
+            BB.printAsOperand(RSO, false);
+            RSO.flush();
+            os << "\n<label " << BBLabel << ">\n";
+          }
+          // print all instructions
+          for (auto &I : BB) {
+            os << "  ";
+            if (shortenIR) {
+              os << llvmIRToShortString(&I);
+            } else {
+              os << llvmIRToString(&I);
+            }
+            os << '\n';
+          }
+        }
+        os << "}\n\n";
+      }
+    }
+    os << '\n';
   }
 }
 

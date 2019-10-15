@@ -21,13 +21,9 @@
 #include <phasar/Config/Configuration.h>
 #include <phasar/Config/Version.h>
 
-namespace bpo = boost::program_options;
-
 using namespace psr;
 
 namespace psr {
-
-bpo::variables_map VariablesMap;
 
 PhasarConfig::PhasarConfig() {
   loadGlibcSpecialFunctionNames();
@@ -93,19 +89,6 @@ void PhasarConfig::loadLLVMSpecialFunctionNames() {
     special_function_names.insert({"llvm.va_start"});
   }
 }
-
-const std::string PhasarConfig::configuration_directory = std::string([]() {
-  char *env_home = std::getenv("HOME");
-  std::string config_folder = "config/";
-  if (env_home) { // Check if HOME was defined in the environment
-    std::string phasar_config = std::string(env_home) + "/.config/phasar/";
-    if (boost::filesystem::exists(phasar_config) &&
-        boost::filesystem::is_directory(phasar_config)) {
-      config_folder = phasar_config;
-    }
-  }
-  return config_folder;
-}());
 
 const std::string PhasarConfig::phasar_directory = std::string([]() {
   std::string curr_path = boost::filesystem::current_path().string();

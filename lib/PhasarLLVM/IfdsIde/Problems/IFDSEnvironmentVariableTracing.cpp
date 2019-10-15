@@ -2,6 +2,7 @@
  * @author Sebastian Roland <seroland86@gmail.com>
  */
 
+#include <initializer_list>
 #include <set>
 #include <string>
 #include <vector>
@@ -34,32 +35,28 @@
 namespace psr {
 
 IFDSEnvironmentVariableTracing::IFDSEnvironmentVariableTracing(
-    LLVMBasedICFG &ICFG, std::vector<std::string> EntryPoints = {"main"})
+    LLVMBasedICFG &ICFG, const TaintConfiguration<ExtendedValue> &TaintConfig,
+    std::vector<std::string> EntryPoints = {"main"})
     : DefaultIFDSTabulationProblem<const llvm::Instruction *, ExtendedValue,
                                    const llvm::Function *, LLVMBasedICFG &>(
           ICFG),
-      EntryPoints(EntryPoints), taintSenFun(true) {
-  for (auto fun : DataFlowUtils::getTaintedFunctions()) {
-    taintSenFun.Sources.insert(
-        std::pair<std::string, TaintSensitiveFunctions::SourceFunction>(
-            fun, TaintSensitiveFunctions::SourceFunction(fun, false)));
-  }
-  for (auto fun : DataFlowUtils::getBlacklistedFunctions()) {
-    taintSenFun.Sinks.insert(
-        std::pair<std::string, TaintSensitiveFunctions::SinkFunction>(
-            fun, TaintSensitiveFunctions::SinkFunction(
-                     fun, std::vector<unsigned>())));
-  }
-
+      EntryPoints(EntryPoints), taintConfig(TaintConfig) {
   DefaultIFDSTabulationProblem::zerovalue = createZeroValue();
-  this->solver_config.computeValues = false;
-  this->solver_config.computePersistedSummaries = false;
+  this->solver_config.computeValues = true; // do not touch
 }
 
 std::shared_ptr<FlowFunction<ExtendedValue>>
 IFDSEnvironmentVariableTracing::getNormalFlowFunction(
     const llvm::Instruction *currentInst,
     const llvm::Instruction *successorInst) {
+  if (taintConfig.isSource(currentInst)) {
+    // TODO: generate current inst wrapped in an ExtendedValue
+  }
+
+  if (taintConfig.isSink(currentInst)) {
+    // TODO: report leak as done for the functions
+  }
+
   if (DataFlowUtils::isReturnValue(currentInst, successorInst))
     return std::make_shared<ReturnInstFlowFunction>(successorInst, traceStats,
                                                     zeroValue());
@@ -161,7 +158,7 @@ IFDSEnvironmentVariableTracing::getSummaryFlowFunction(
    * Exclude blacklisted functions here.
    */
 
-  if (taintSenFun.isSink(destMthdName))
+  if (taintConfig.isSink(destMthdName))
     return std::make_shared<IdentityFlowFunction>(callStmt, traceStats,
                                                   zeroValue());
 
@@ -187,7 +184,7 @@ IFDSEnvironmentVariableTracing::getSummaryFlowFunction(
   /*
    * Provide summary for tainted functions.
    */
-  if (taintSenFun.isSource(destMthdName))
+  if (taintConfig.isSource(destMthdName))
     return std::make_shared<GenerateFlowFunction>(callStmt, traceStats,
                                                   zeroValue());
 
@@ -208,15 +205,17 @@ IFDSEnvironmentVariableTracing::getSummaryFlowFunction(
 std::map<const llvm::Instruction *, std::set<ExtendedValue>>
 IFDSEnvironmentVariableTracing::initialSeeds() {
   std::map<const llvm::Instruction *, std::set<ExtendedValue>> seedMap;
-
   for (const auto &entryPoint : this->EntryPoints) {
-    if (taintSenFun.isSink(entryPoint))
+    if (taintConfig.isSink(entryPoint))
       continue;
-
     seedMap.insert(std::make_pair(&icfg.getMethod(entryPoint)->front().front(),
                                   std::set<ExtendedValue>({zeroValue()})));
   }
-
+  // additionally, add initial seeds if there are any
+  auto taintConfigSeeds = taintConfig.getInitialSeeds();
+  for (auto &seed : taintConfigSeeds) {
+    seedMap[seed.first].insert(seed.second.begin(), seed.second.end());
+  }
   return seedMap;
 }
 

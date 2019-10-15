@@ -19,7 +19,7 @@
 #include <phasar/PhasarLLVM/IfdsIde/DefaultIFDSTabulationProblem.h>
 #include <phasar/PhasarLLVM/IfdsIde/IFDSEnvironmentVariableTracing/Stats/TraceStats.h>
 #include <phasar/PhasarLLVM/IfdsIde/LLVMZeroValue.h>
-#include <phasar/PhasarLLVM/Utils/TaintSensitiveFunctions.h>
+#include <phasar/PhasarLLVM/Utils/TaintConfiguration.h>
 #include <phasar/Utils/LLVMShorthands.h>
 
 namespace psr {
@@ -29,8 +29,9 @@ class IFDSEnvironmentVariableTracing
                                           ExtendedValue, const llvm::Function *,
                                           LLVMBasedICFG &> {
 public:
-  IFDSEnvironmentVariableTracing(LLVMBasedICFG &ICFG,
-                                 std::vector<std::string> EntryPoints);
+  IFDSEnvironmentVariableTracing(
+      LLVMBasedICFG &ICFG, const TaintConfiguration<ExtendedValue> &TaintConfig,
+      std::vector<std::string> EntryPoints);
   ~IFDSEnvironmentVariableTracing() override = default;
 
   std::shared_ptr<FlowFunction<ExtendedValue>>
@@ -102,7 +103,7 @@ protected:
   std::vector<std::string> EntryPoints;
 
 private:
-  TaintSensitiveFunctions taintSenFun;
+  TaintConfiguration<ExtendedValue> taintConfig;
 
   TraceStats traceStats;
 };
