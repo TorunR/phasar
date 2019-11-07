@@ -15,8 +15,6 @@
 #include <set>
 #include <string>
 
-#include <clang/Tooling/CompilationDatabase.h>
-
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
 
@@ -79,6 +77,7 @@ private:
   void buildGlobalModuleMapping(llvm::Module *M);
   void buildIDModuleMapping(llvm::Module *M);
   void preprocessModule(llvm::Module *M);
+  bool wasCompiledWithDebugInfo(llvm::Module *M) const;
 
 public:
   /// Constructs an empty ProjectIRDB
@@ -86,10 +85,6 @@ public:
   /// Constructs a ProjectIRDB from a bunch of llvm IR files
   ProjectIRDB(const std::vector<std::string> &IRFiles,
               enum IRDBOptions Opt = IRDBOptions::NONE);
-  /// Constructs a ProjectIRDB from a CompilationDatabase (only for simple
-  /// projects)
-  ProjectIRDB(const clang::tooling::CompilationDatabase &CompileDB,
-              enum IRDBOptions Opt);
   /// Constructs a ProjectIRDB from files which may have to be compiled to llvm
   /// IR
   ProjectIRDB(const std::vector<std::string> &Files,
@@ -110,6 +105,7 @@ public:
   llvm::Module *getWPAModule();
   bool containsSourceFile(const std::string &src);
   bool empty();
+  bool debugInfoAvailable() const;
   llvm::LLVMContext *getLLVMContext(const std::string &ModuleName);
   void insertModule(std::unique_ptr<llvm::Module> M);
   llvm::Module *getModule(const std::string &ModuleName);
@@ -132,7 +128,8 @@ public:
   std::set<const llvm::Value *> getAllMemoryLocations();
   std::set<std::string> getAllSourceFiles();
   std::size_t getNumberOfModules();
-  llvm::Module *getModuleDefiningFunction(const std::string &FunctionName);
+  llvm::Module *
+  getModuleDefiningFunction(const std::string &FunctionName) const;
   llvm::Function *getFunction(const std::string &FunctionName);
   llvm::GlobalVariable *
   getGlobalVariable(const std::string &GlobalVariableName);
