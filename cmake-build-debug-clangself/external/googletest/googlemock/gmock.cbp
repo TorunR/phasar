@@ -1,0 +1,523 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CodeBlocks_project_file>
+	<FileVersion major="1" minor="6"/>
+	<Project>
+		<Option title="gmock"/>
+		<Option makefile_is_custom="1"/>
+		<Option compiler="clang"/>
+		<Option virtualFolders="CMake Files\;CMake Files\external\;CMake Files\external\wise_enum\;CMake Files\external\wise_enum\cmake\;CMake Files\external\googletest\;CMake Files\external\googletest\googlemock\;CMake Files\external\googletest\googlemock\cmake\;CMake Files\external\googletest\googletest\;CMake Files\external\googletest\googletest\cmake\;CMake Files\external\json\;CMake Files\external\json\cmake\;CMake Files\external\WALi-OpenNWA\;CMake Files\external\WALi-OpenNWA\Source\;CMake Files\external\WALi-OpenNWA\Source\wali\;CMake Files\external\WALi-OpenNWA\Source\wali\include\;CMake Files\external\WALi-OpenNWA\Source\wali\lib\;CMake Files\cmake\;CMake Files\..\;CMake Files\..\..\;CMake Files\..\..\..\;CMake Files\..\..\..\..\;CMake Files\..\..\..\..\..\;CMake Files\..\..\..\..\..\usr\;CMake Files\..\..\..\..\..\usr\lib64\;CMake Files\..\..\..\..\..\usr\lib64\cmake\;CMake Files\..\..\..\..\..\usr\lib64\cmake\Boost-1.71.0\;CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_headers-1.71.0\;CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_filesystem-1.71.0\;CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_graph-1.71.0\;CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_regex-1.71.0\;CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_system-1.71.0\;CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_program_options-1.71.0\;CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_log-1.71.0\;CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_atomic-1.71.0\;CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_chrono-1.71.0\;CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_date_time-1.71.0\;CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_thread-1.71.0\;CMake Files\..\..\..\code\;CMake Files\..\..\..\code\llvm-project\;CMake Files\..\..\..\code\llvm-project\install\;CMake Files\..\..\..\code\llvm-project\install\lib\;CMake Files\..\..\..\code\llvm-project\install\lib\cmake\;CMake Files\..\..\..\code\llvm-project\install\lib\cmake\llvm\;CMake Files\include\;CMake Files\include\phasar\;CMake Files\lib\;CMake Files\lib\PhasarLLVM\;CMake Files\lib\PhasarLLVM\ControlFlow\;CMake Files\lib\PhasarLLVM\IfdsIde\;CMake Files\lib\PhasarLLVM\Mono\;CMake Files\lib\PhasarLLVM\Passes\;CMake Files\lib\PhasarLLVM\Plugins\;CMake Files\lib\PhasarLLVM\Pointer\;CMake Files\lib\PhasarLLVM\SyncPDS\;CMake Files\lib\PhasarLLVM\Utils\;CMake Files\lib\PhasarLLVM\WPDS\;CMake Files\lib\PhasarPass\;CMake Files\lib\PhasarClang\;CMake Files\lib\DB\;CMake Files\lib\Config\;CMake Files\lib\Experimental\;CMake Files\lib\Utils\;CMake Files\lib\Controller\;"/>
+		<Build>
+			<Target title="all">
+				<Option working_dir="/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googlemock"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googlemock/Makefile&quot;  VERBOSE=1 all"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googlemock/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googlemock/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googlemock/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="gmock_main">
+				<Option output="/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/lib/libgmock_maind.so" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googlemock"/>
+				<Option object_output="./"/>
+				<Option type="3"/>
+				<Option compiler="clang"/>
+				<Compiler>
+					<Add option="-DGTEST_CREATE_SHARED_LIBRARY=1"/>
+					<Add directory="/home/pmueller/Arbeit/code/phasar/include"/>
+					<Add directory="/home/pmueller/Arbeit/code/phasar/external/json/single_include/nlohmann"/>
+					<Add directory="/home/pmueller/Arbeit/code/phasar/external/googletest/googlemock/include"/>
+					<Add directory="/home/pmueller/Arbeit/code/phasar/external/googletest/googlemock"/>
+					<Add directory="/home/pmueller/Arbeit/code/phasar/external/googletest/googletest/include"/>
+					<Add directory="/home/pmueller/Arbeit/code/phasar/external/googletest/googletest"/>
+					<Add directory="/usr/lib64/gcc/x86_64-pc-linux-gnu/9.2.0/../../../../include/c++/9.2.0"/>
+					<Add directory="/usr/lib64/gcc/x86_64-pc-linux-gnu/9.2.0/../../../../include/c++/9.2.0/x86_64-pc-linux-gnu"/>
+					<Add directory="/usr/lib64/gcc/x86_64-pc-linux-gnu/9.2.0/../../../../include/c++/9.2.0/backward"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/home/pmueller/code/llvm-project/install/lib/clang/9.0.0/include"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googlemock/Makefile&quot;  VERBOSE=1 gmock_main"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googlemock/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googlemock/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googlemock/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="gmock_main/fast">
+				<Option output="/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/lib/libgmock_maind.so" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googlemock"/>
+				<Option object_output="./"/>
+				<Option type="3"/>
+				<Option compiler="clang"/>
+				<Compiler>
+					<Add option="-DGTEST_CREATE_SHARED_LIBRARY=1"/>
+					<Add directory="/home/pmueller/Arbeit/code/phasar/include"/>
+					<Add directory="/home/pmueller/Arbeit/code/phasar/external/json/single_include/nlohmann"/>
+					<Add directory="/home/pmueller/Arbeit/code/phasar/external/googletest/googlemock/include"/>
+					<Add directory="/home/pmueller/Arbeit/code/phasar/external/googletest/googlemock"/>
+					<Add directory="/home/pmueller/Arbeit/code/phasar/external/googletest/googletest/include"/>
+					<Add directory="/home/pmueller/Arbeit/code/phasar/external/googletest/googletest"/>
+					<Add directory="/usr/lib64/gcc/x86_64-pc-linux-gnu/9.2.0/../../../../include/c++/9.2.0"/>
+					<Add directory="/usr/lib64/gcc/x86_64-pc-linux-gnu/9.2.0/../../../../include/c++/9.2.0/x86_64-pc-linux-gnu"/>
+					<Add directory="/usr/lib64/gcc/x86_64-pc-linux-gnu/9.2.0/../../../../include/c++/9.2.0/backward"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/home/pmueller/code/llvm-project/install/lib/clang/9.0.0/include"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googlemock/Makefile&quot;  VERBOSE=1 gmock_main/fast"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googlemock/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googlemock/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googlemock/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="gmock">
+				<Option output="/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/lib/libgmockd.so" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googlemock"/>
+				<Option object_output="./"/>
+				<Option type="3"/>
+				<Option compiler="clang"/>
+				<Compiler>
+					<Add option="-DGTEST_CREATE_SHARED_LIBRARY=1"/>
+					<Add directory="/home/pmueller/Arbeit/code/phasar/include"/>
+					<Add directory="/home/pmueller/Arbeit/code/phasar/external/json/single_include/nlohmann"/>
+					<Add directory="/home/pmueller/Arbeit/code/phasar/external/googletest/googlemock/include"/>
+					<Add directory="/home/pmueller/Arbeit/code/phasar/external/googletest/googlemock"/>
+					<Add directory="/home/pmueller/Arbeit/code/phasar/external/googletest/googletest/include"/>
+					<Add directory="/home/pmueller/Arbeit/code/phasar/external/googletest/googletest"/>
+					<Add directory="/usr/lib64/gcc/x86_64-pc-linux-gnu/9.2.0/../../../../include/c++/9.2.0"/>
+					<Add directory="/usr/lib64/gcc/x86_64-pc-linux-gnu/9.2.0/../../../../include/c++/9.2.0/x86_64-pc-linux-gnu"/>
+					<Add directory="/usr/lib64/gcc/x86_64-pc-linux-gnu/9.2.0/../../../../include/c++/9.2.0/backward"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/home/pmueller/code/llvm-project/install/lib/clang/9.0.0/include"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googlemock/Makefile&quot;  VERBOSE=1 gmock"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googlemock/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googlemock/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googlemock/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="gmock/fast">
+				<Option output="/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/lib/libgmockd.so" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googlemock"/>
+				<Option object_output="./"/>
+				<Option type="3"/>
+				<Option compiler="clang"/>
+				<Compiler>
+					<Add option="-DGTEST_CREATE_SHARED_LIBRARY=1"/>
+					<Add directory="/home/pmueller/Arbeit/code/phasar/include"/>
+					<Add directory="/home/pmueller/Arbeit/code/phasar/external/json/single_include/nlohmann"/>
+					<Add directory="/home/pmueller/Arbeit/code/phasar/external/googletest/googlemock/include"/>
+					<Add directory="/home/pmueller/Arbeit/code/phasar/external/googletest/googlemock"/>
+					<Add directory="/home/pmueller/Arbeit/code/phasar/external/googletest/googletest/include"/>
+					<Add directory="/home/pmueller/Arbeit/code/phasar/external/googletest/googletest"/>
+					<Add directory="/usr/lib64/gcc/x86_64-pc-linux-gnu/9.2.0/../../../../include/c++/9.2.0"/>
+					<Add directory="/usr/lib64/gcc/x86_64-pc-linux-gnu/9.2.0/../../../../include/c++/9.2.0/x86_64-pc-linux-gnu"/>
+					<Add directory="/usr/lib64/gcc/x86_64-pc-linux-gnu/9.2.0/../../../../include/c++/9.2.0/backward"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/home/pmueller/code/llvm-project/install/lib/clang/9.0.0/include"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googlemock/Makefile&quot;  VERBOSE=1 gmock/fast"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googlemock/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googlemock/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googlemock/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="gtest_main">
+				<Option output="/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/lib/libgtest_maind.so" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googletest"/>
+				<Option object_output="./"/>
+				<Option type="3"/>
+				<Option compiler="clang"/>
+				<Compiler>
+					<Add option="-DGTEST_CREATE_SHARED_LIBRARY=1"/>
+					<Add directory="/home/pmueller/Arbeit/code/phasar/include"/>
+					<Add directory="/home/pmueller/Arbeit/code/phasar/external/json/single_include/nlohmann"/>
+					<Add directory="/home/pmueller/Arbeit/code/phasar/external/googletest/googletest/include"/>
+					<Add directory="/home/pmueller/Arbeit/code/phasar/external/googletest/googletest"/>
+					<Add directory="/usr/lib64/gcc/x86_64-pc-linux-gnu/9.2.0/../../../../include/c++/9.2.0"/>
+					<Add directory="/usr/lib64/gcc/x86_64-pc-linux-gnu/9.2.0/../../../../include/c++/9.2.0/x86_64-pc-linux-gnu"/>
+					<Add directory="/usr/lib64/gcc/x86_64-pc-linux-gnu/9.2.0/../../../../include/c++/9.2.0/backward"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/home/pmueller/code/llvm-project/install/lib/clang/9.0.0/include"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googletest/Makefile&quot;  VERBOSE=1 gtest_main"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googletest/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googletest/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googletest/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="gtest_main/fast">
+				<Option output="/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/lib/libgtest_maind.so" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googletest"/>
+				<Option object_output="./"/>
+				<Option type="3"/>
+				<Option compiler="clang"/>
+				<Compiler>
+					<Add option="-DGTEST_CREATE_SHARED_LIBRARY=1"/>
+					<Add directory="/home/pmueller/Arbeit/code/phasar/include"/>
+					<Add directory="/home/pmueller/Arbeit/code/phasar/external/json/single_include/nlohmann"/>
+					<Add directory="/home/pmueller/Arbeit/code/phasar/external/googletest/googletest/include"/>
+					<Add directory="/home/pmueller/Arbeit/code/phasar/external/googletest/googletest"/>
+					<Add directory="/usr/lib64/gcc/x86_64-pc-linux-gnu/9.2.0/../../../../include/c++/9.2.0"/>
+					<Add directory="/usr/lib64/gcc/x86_64-pc-linux-gnu/9.2.0/../../../../include/c++/9.2.0/x86_64-pc-linux-gnu"/>
+					<Add directory="/usr/lib64/gcc/x86_64-pc-linux-gnu/9.2.0/../../../../include/c++/9.2.0/backward"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/home/pmueller/code/llvm-project/install/lib/clang/9.0.0/include"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googletest/Makefile&quot;  VERBOSE=1 gtest_main/fast"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googletest/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googletest/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googletest/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="gtest">
+				<Option output="/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/lib/libgtestd.so" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googletest"/>
+				<Option object_output="./"/>
+				<Option type="3"/>
+				<Option compiler="clang"/>
+				<Compiler>
+					<Add option="-DGTEST_CREATE_SHARED_LIBRARY=1"/>
+					<Add directory="/home/pmueller/Arbeit/code/phasar/include"/>
+					<Add directory="/home/pmueller/Arbeit/code/phasar/external/json/single_include/nlohmann"/>
+					<Add directory="/home/pmueller/Arbeit/code/phasar/external/googletest/googletest/include"/>
+					<Add directory="/home/pmueller/Arbeit/code/phasar/external/googletest/googletest"/>
+					<Add directory="/usr/lib64/gcc/x86_64-pc-linux-gnu/9.2.0/../../../../include/c++/9.2.0"/>
+					<Add directory="/usr/lib64/gcc/x86_64-pc-linux-gnu/9.2.0/../../../../include/c++/9.2.0/x86_64-pc-linux-gnu"/>
+					<Add directory="/usr/lib64/gcc/x86_64-pc-linux-gnu/9.2.0/../../../../include/c++/9.2.0/backward"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/home/pmueller/code/llvm-project/install/lib/clang/9.0.0/include"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googletest/Makefile&quot;  VERBOSE=1 gtest"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googletest/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googletest/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googletest/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="gtest/fast">
+				<Option output="/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/lib/libgtestd.so" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googletest"/>
+				<Option object_output="./"/>
+				<Option type="3"/>
+				<Option compiler="clang"/>
+				<Compiler>
+					<Add option="-DGTEST_CREATE_SHARED_LIBRARY=1"/>
+					<Add directory="/home/pmueller/Arbeit/code/phasar/include"/>
+					<Add directory="/home/pmueller/Arbeit/code/phasar/external/json/single_include/nlohmann"/>
+					<Add directory="/home/pmueller/Arbeit/code/phasar/external/googletest/googletest/include"/>
+					<Add directory="/home/pmueller/Arbeit/code/phasar/external/googletest/googletest"/>
+					<Add directory="/usr/lib64/gcc/x86_64-pc-linux-gnu/9.2.0/../../../../include/c++/9.2.0"/>
+					<Add directory="/usr/lib64/gcc/x86_64-pc-linux-gnu/9.2.0/../../../../include/c++/9.2.0/x86_64-pc-linux-gnu"/>
+					<Add directory="/usr/lib64/gcc/x86_64-pc-linux-gnu/9.2.0/../../../../include/c++/9.2.0/backward"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/home/pmueller/code/llvm-project/install/lib/clang/9.0.0/include"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googletest/Makefile&quot;  VERBOSE=1 gtest/fast"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googletest/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googletest/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/pmueller/Arbeit/code/phasar/cmake-build-debug-clangself/external/googletest/googletest/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+		</Build>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/external/googletest/googlemock/src/gmock-all.cc">
+			<Option target="gmock"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/external/googletest/googlemock/src/gmock_main.cc">
+			<Option target="gmock_main"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/external/googletest/googletest/src/gtest-all.cc">
+			<Option target="gtest"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/external/googletest/googletest/src/gtest_main.cc">
+			<Option target="gtest_main"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/external/wise_enum/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\external\wise_enum\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/external/wise_enum/cmake/Config.cmake.in">
+			<Option virtualFolder="CMake Files\external\wise_enum\cmake\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/external/wise_enum/cmake/WiseEnum.pc.in">
+			<Option virtualFolder="CMake Files\external\wise_enum\cmake\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/external/googletest/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\external\googletest\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/external/googletest/googlemock/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\external\googletest\googlemock\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/external/googletest/googlemock/cmake/gmock.pc.in">
+			<Option virtualFolder="CMake Files\external\googletest\googlemock\cmake\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/external/googletest/googlemock/cmake/gmock_main.pc.in">
+			<Option virtualFolder="CMake Files\external\googletest\googlemock\cmake\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/external/googletest/googletest/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\external\googletest\googletest\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/external/googletest/googletest/cmake/Config.cmake.in">
+			<Option virtualFolder="CMake Files\external\googletest\googletest\cmake\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/external/googletest/googletest/cmake/gtest.pc.in">
+			<Option virtualFolder="CMake Files\external\googletest\googletest\cmake\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/external/googletest/googletest/cmake/gtest_main.pc.in">
+			<Option virtualFolder="CMake Files\external\googletest\googletest\cmake\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/external/googletest/googletest/cmake/internal_utils.cmake">
+			<Option virtualFolder="CMake Files\external\googletest\googletest\cmake\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/external/json/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\external\json\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/external/json/cmake/config.cmake.in">
+			<Option virtualFolder="CMake Files\external\json\cmake\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/external/WALi-OpenNWA/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\external\WALi-OpenNWA\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/external/WALi-OpenNWA/Source/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\external\WALi-OpenNWA\Source\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/external/WALi-OpenNWA/Source/wali/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\external\WALi-OpenNWA\Source\wali\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/external/WALi-OpenNWA/Source/wali/include/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\external\WALi-OpenNWA\Source\wali\include\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/external/WALi-OpenNWA/Source/wali/lib/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\external\WALi-OpenNWA\Source\wali\lib\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/cmake/phasar_macros.cmake">
+			<Option virtualFolder="CMake Files\cmake\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/BoostDetectToolset-1.71.0.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/Boost-1.71.0/BoostConfig.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\Boost-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/Boost-1.71.0/BoostConfigVersion.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\Boost-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_headers-1.71.0/boost_headers-config-version.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_headers-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_headers-1.71.0/boost_headers-config.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_headers-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_filesystem-1.71.0/boost_filesystem-config-version.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_filesystem-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_filesystem-1.71.0/boost_filesystem-config.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_filesystem-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_filesystem-1.71.0/libboost_filesystem-variant-shared.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_filesystem-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_filesystem-1.71.0/libboost_filesystem-variant-static.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_filesystem-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_graph-1.71.0/boost_graph-config-version.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_graph-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_graph-1.71.0/boost_graph-config.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_graph-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_graph-1.71.0/libboost_graph-variant-shared.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_graph-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_graph-1.71.0/libboost_graph-variant-static.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_graph-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_regex-1.71.0/boost_regex-config-version.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_regex-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_regex-1.71.0/boost_regex-config.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_regex-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_regex-1.71.0/libboost_regex-variant-shared.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_regex-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_regex-1.71.0/libboost_regex-variant-static.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_regex-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_system-1.71.0/boost_system-config-version.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_system-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_system-1.71.0/boost_system-config.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_system-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_system-1.71.0/libboost_system-variant-shared.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_system-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_system-1.71.0/libboost_system-variant-static.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_system-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_program_options-1.71.0/boost_program_options-config-version.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_program_options-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_program_options-1.71.0/boost_program_options-config.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_program_options-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_program_options-1.71.0/libboost_program_options-variant-shared.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_program_options-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_program_options-1.71.0/libboost_program_options-variant-static.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_program_options-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_log-1.71.0/boost_log-config-version.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_log-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_log-1.71.0/boost_log-config.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_log-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_log-1.71.0/libboost_log-variant-shared.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_log-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_log-1.71.0/libboost_log-variant-static.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_log-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_atomic-1.71.0/boost_atomic-config-version.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_atomic-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_atomic-1.71.0/boost_atomic-config.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_atomic-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_atomic-1.71.0/libboost_atomic-variant-shared.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_atomic-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_atomic-1.71.0/libboost_atomic-variant-static.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_atomic-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_chrono-1.71.0/boost_chrono-config-version.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_chrono-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_chrono-1.71.0/boost_chrono-config.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_chrono-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_chrono-1.71.0/libboost_chrono-variant-shared.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_chrono-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_chrono-1.71.0/libboost_chrono-variant-static.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_chrono-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_date_time-1.71.0/boost_date_time-config-version.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_date_time-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_date_time-1.71.0/boost_date_time-config.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_date_time-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_date_time-1.71.0/libboost_date_time-variant-shared.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_date_time-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_date_time-1.71.0/libboost_date_time-variant-static.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_date_time-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_thread-1.71.0/boost_thread-config-version.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_thread-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_thread-1.71.0/boost_thread-config.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_thread-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_thread-1.71.0/libboost_thread-variant-shared.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_thread-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../../../usr/lib64/cmake/boost_thread-1.71.0/libboost_thread-variant-static.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\..\usr\lib64\cmake\boost_thread-1.71.0\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../code/llvm-project/install/lib/cmake/llvm/LLVM-Config.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\code\llvm-project\install\lib\cmake\llvm\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../code/llvm-project/install/lib/cmake/llvm/LLVMConfig.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\code\llvm-project\install\lib\cmake\llvm\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../code/llvm-project/install/lib/cmake/llvm/LLVMConfigVersion.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\code\llvm-project\install\lib\cmake\llvm\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../code/llvm-project/install/lib/cmake/llvm/LLVMExports-relwithdebinfo.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\code\llvm-project\install\lib\cmake\llvm\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/../../../code/llvm-project/install/lib/cmake/llvm/LLVMExports.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\code\llvm-project\install\lib\cmake\llvm\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/include/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\include\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/include/phasar/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\include\phasar\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/lib/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\lib\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/lib/PhasarLLVM/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\lib\PhasarLLVM\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/lib/PhasarLLVM/ControlFlow/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\lib\PhasarLLVM\ControlFlow\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/lib/PhasarLLVM/IfdsIde/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\lib\PhasarLLVM\IfdsIde\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/lib/PhasarLLVM/Mono/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\lib\PhasarLLVM\Mono\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/lib/PhasarLLVM/Passes/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\lib\PhasarLLVM\Passes\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/lib/PhasarLLVM/Plugins/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\lib\PhasarLLVM\Plugins\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/lib/PhasarLLVM/Pointer/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\lib\PhasarLLVM\Pointer\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/lib/PhasarLLVM/SyncPDS/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\lib\PhasarLLVM\SyncPDS\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/lib/PhasarLLVM/Utils/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\lib\PhasarLLVM\Utils\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/lib/PhasarLLVM/WPDS/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\lib\PhasarLLVM\WPDS\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/lib/PhasarPass/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\lib\PhasarPass\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/lib/PhasarClang/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\lib\PhasarClang\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/lib/DB/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\lib\DB\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/lib/Config/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\lib\Config\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/lib/Experimental/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\lib\Experimental\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/lib/Utils/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\lib\Utils\"/>
+		</Unit>
+		<Unit filename="/home/pmueller/Arbeit/code/phasar/lib/Controller/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\lib\Controller\"/>
+		</Unit>
+	</Project>
+</CodeBlocks_project_file>

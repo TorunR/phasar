@@ -17,6 +17,7 @@
 #ifndef PHASAR_PHASARLLVM_CONTROLFLOW_LLVMBASEDCFG_H_
 #define PHASAR_PHASARLLVM_CONTROLFLOW_LLVMBASEDCFG_H_
 
+#include <map>
 #include <set>
 #include <string>
 #include <vector>
@@ -26,6 +27,7 @@
 namespace llvm {
 class Function;
 class Instruction;
+class BasicBlock;
 } // namespace llvm
 
 namespace psr {
@@ -68,6 +70,14 @@ public:
   std::string getStatementId(const llvm::Instruction *stmt) override;
 
   std::string getMethodName(const llvm::Function *fun) override;
+
+  static std::map<const llvm::BasicBlock *, std::set<const llvm::BasicBlock *>>
+  getNonTerminationSensitiveControlDependence(const llvm::Function &fun);
+
+  static std::map<const llvm::BasicBlock *, std::set<const llvm::BasicBlock *>>
+  getNonTerminationInsensitiveControlDependence(const llvm::Function &fun);
+  static std::map<const llvm::BasicBlock *, std::set<const llvm::BasicBlock *>>
+  getDecisiveControlDependence(const llvm::Function &fun);
 };
 
 } // namespace psr

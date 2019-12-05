@@ -13,11 +13,17 @@
  *  Created on: 07.06.2017
  *      Author: philipp
  */
+#include <algorithm>
+#include <iostream>
+#include <map>
+#include <set>
+#include <tuple>
 
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Instruction.h>
 #include <llvm/IR/Instructions.h>
 
+#include <llvm/Support/Debug.h>
 #include <phasar/Config/Configuration.h>
 #include <phasar/PhasarLLVM/ControlFlow/LLVMBasedCFG.h>
 
@@ -156,4 +162,325 @@ string LLVMBasedCFG::getStatementId(const llvm::Instruction *stmt) {
 string LLVMBasedCFG::getMethodName(const llvm::Function *fun) {
   return fun->getName().str();
 }
+
+bool hasSingleExitNode(const llvm::Function &fun) {
+  bool foundOne = false;
+  for (const auto &bb : fun) {
+    // TODO: What is about throws
+    if (llvm::isa<llvm::ReturnInst>(bb.getTerminator())) {
+      if (foundOne) {
+        return false;
+      } else {
+        foundOne = true;
+      }
+    }
+  }
+  return foundOne;
+}
+
+void getControlDependence() {}
+using pathElem = pair<const llvm::BasicBlock *, const llvm::BasicBlock *>;
+void getStrongControlDependence() {}
+void getWeakControlDependence() {}
+
+bool haveEmptyIntersection(const set<pathElem> &s1, const set<pathElem> &s2) {
+  vector<pathElem> diff(s1.size());
+  std::set_difference(s1.begin(), s1.end(), s2.begin(), s2.end(), diff.begin());
+  return !diff.empty() &&
+         std::any_of(diff.begin(), diff.end(), [](pathElem &pathElem1) {
+           return pathElem1 !=
+                  make_pair<const llvm::BasicBlock *, const llvm::BasicBlock *>(
+                      nullptr, nullptr);
+         });
+}
+
+map<const llvm::BasicBlock *, set<const llvm::BasicBlock *>>
+LLVMBasedCFG::getNonTerminationSensitiveControlDependence(
+    const llvm::Function &fun) {
+  if (!fun.isDeclaration()) {
+    deque<const llvm::BasicBlock *> wl;
+    map<const llvm::BasicBlock *, map<const llvm::BasicBlock *, set<pathElem>>>
+        maximalPaths;
+    set<const llvm::BasicBlock *> condNodes;
+    for (const auto &n : fun) {
+      auto *term{n.getTerminator()};
+      auto numSucc{term->getNumSuccessors()};
+      if (numSucc > 1) {
+        condNodes.insert(&n);
+        for (unsigned int i = 0; i < numSucc; ++i) {
+          auto *succ{term->getSuccessor(i)};
+          wl.push_back(succ);
+          auto &m = maximalPaths[succ];
+          m[&n].emplace(&n, succ);
+        }
+      }
+    }
+
+    while (!wl.empty()) {
+      auto n = wl.front();
+      wl.pop_front();
+      auto *term = n->getTerminator();
+      auto numSucc = term->getNumSuccessors();
+      if (numSucc == 1) {
+        auto *m = term->getSuccessor(0);
+        if (m != n) {
+          for (auto *p : condNodes) {
+            auto &s1{maximalPaths[n][p]};
+            auto &s2{maximalPaths[m][p]};
+            vector<pathElem> diff(s1.size());
+            std::set_difference(s1.begin(), s1.end(), s2.begin(), s2.end(),
+                                diff.begin());
+            if (haveEmptyIntersection(s1, s2)) {
+              s2.insert(s1.begin(), s1.end());
+              wl.push_back(m);
+            }
+          }
+        }
+      } else if (numSucc > 1) {
+        for (auto &m : fun) {
+          auto numSuccM = m.getTerminator()->getNumSuccessors();
+          if (maximalPaths[&m][n].size() == numSuccM) {
+            for (auto *p : condNodes) {
+              if (p != n) {
+                auto &s1{maximalPaths[n][p]};
+                auto &s2{maximalPaths[&m][p]};
+                vector<pathElem> diff(s1.size());
+                std::set_difference(s1.begin(), s1.end(), s2.begin(), s2.end(),
+                                    diff.begin());
+                if (haveEmptyIntersection(s1, s2)) {
+                  s2.insert(s1.begin(), s1.end());
+                  wl.push_back(&m);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    for (auto &maximalPath : maximalPaths) {
+      auto *p = maximalPath.first;
+      for (auto &bla : maximalPath.second) {
+        auto *n = bla.first;
+        for (auto &m : bla.second) {
+          llvm::dbgs() << "Path: " << n->getName() << " -> " << p->getName()
+                       << " -> " << m.second->getName() << "\n";
+        }
+      }
+    }
+    map<const llvm::BasicBlock *, set<const llvm::BasicBlock *>> cds;
+    for (const auto &n : fun) {
+      for (const auto *m : condNodes) {
+        auto numPaths = maximalPaths[&n][m].size();
+        auto numSucc = m->getTerminator()->getNumSuccessors();
+        if (numPaths > 0 && numPaths < numSucc) {
+          cds[m].insert(&n);
+        }
+      }
+    }
+
+    fun.viewCFG();
+
+    for (auto &bb : cds) {
+      llvm::dbgs() << bb.first << " " << bb.first->getValueName()->first()
+                   << "\n";
+      for (auto &bb2 : bb.second)
+        llvm::dbgs() << "\t" << bb2 << " " << bb2->getValueName()->first()
+                     << "\n";
+    }
+
+    return cds;
+  }
+  return std::map<const llvm::BasicBlock *, set<const llvm::BasicBlock *>>();
+}
+
+map<const llvm::BasicBlock *, set<const llvm::BasicBlock *>>
+LLVMBasedCFG::getNonTerminationInsensitiveControlDependence(
+    const llvm::Function &fun) {
+
+  if (!fun.isDeclaration()) {
+    deque<const llvm::BasicBlock *> wl;
+    map<const llvm::BasicBlock *, map<const llvm::BasicBlock *, set<pathElem>>>
+        maximalPaths;
+    set<const llvm::BasicBlock *> condNodes;
+    for (const auto &n : fun) {
+      auto *term{n.getTerminator()};
+      auto numSucc{term->getNumSuccessors()};
+      if (numSucc > 1) {
+        condNodes.insert(&n);
+        for (unsigned int i = 0; i < numSucc; ++i) {
+          auto *succ{term->getSuccessor(i)};
+          wl.push_back(succ);
+          auto &m = maximalPaths[succ];
+          m[&n].emplace(&n, succ);
+        }
+      }
+    }
+
+    while (!wl.empty()) {
+      auto n = wl.front();
+      wl.pop_front();
+      auto *term = n->getTerminator();
+      auto numSucc = term->getNumSuccessors();
+      if (numSucc == 1) {
+        auto *m = term->getSuccessor(0);
+        if (m != n) {
+          for (auto *p : condNodes) {
+            auto &s1{maximalPaths[n][p]};
+            auto &s2{maximalPaths[m][p]};
+            vector<pathElem> diff(s1.size());
+            std::set_difference(s1.begin(), s1.end(), s2.begin(), s2.end(),
+                                diff.begin());
+            if (haveEmptyIntersection(s1, s2)) {
+              s2.insert(s1.begin(), s1.end());
+              wl.push_back(m);
+            }
+          }
+        }
+      } else if (numSucc > 1) {
+        for (auto &m : fun) {
+          auto numSuccM = m.getTerminator()->getNumSuccessors();
+          if (maximalPaths[&m][n].size() == numSuccM) {
+            for (auto *p : condNodes) {
+              if (p != n) {
+                auto &s1{maximalPaths[n][p]};
+                auto &s2{maximalPaths[&m][p]};
+                vector<pathElem> diff(s1.size());
+                std::set_difference(s1.begin(), s1.end(), s2.begin(), s2.end(),
+                                    diff.begin());
+                if (haveEmptyIntersection(s1, s2)) {
+                  s2.insert(s1.begin(), s1.end());
+                  wl.push_back(&m);
+                }
+              }
+            }
+          }
+        }
+      }
+      if (!maximalPaths[n][n].empty()) {
+        for (unsigned i = 0; i < numSucc; ++i) {
+          auto *m = term->getSuccessor(i);
+          if (m != n) {
+            auto &s1{maximalPaths[n][n]};
+            auto &s2{maximalPaths[m][n]};
+            vector<pathElem> diff(s1.size());
+            std::set_difference(s1.begin(), s1.end(), s2.begin(), s2.end(),
+                                diff.begin());
+            if (!diff.empty() &&
+                std::any_of(diff.begin(), diff.end(), [](pathElem &pathElem1) {
+                  return pathElem1 !=
+                         make_pair<const llvm::BasicBlock *,
+                                   const llvm::BasicBlock *>(nullptr, nullptr);
+                })) {
+              s2.insert(s1.begin(), s1.end());
+              wl.push_back(m);
+            }
+          }
+        }
+      }
+    }
+
+    for (auto &maximalPath : maximalPaths) {
+      auto *p = maximalPath.first;
+      for (auto &bla : maximalPath.second) {
+        auto *n = bla.first;
+        for (auto &m : bla.second) {
+          llvm::dbgs() << "Path: " << n->getName() << " -> " << p->getName()
+                       << " -> " << m.second->getName() << "\n";
+        }
+      }
+    }
+    map<const llvm::BasicBlock *, set<const llvm::BasicBlock *>> cds;
+    for (const auto &n : fun) {
+      for (const auto *m : condNodes) {
+        auto numPaths = maximalPaths[&n][m].size();
+        auto numSucc = m->getTerminator()->getNumSuccessors();
+        if (numPaths > 0 && numPaths < numSucc) {
+          cds[m].insert(&n);
+        }
+      }
+    }
+
+    //    fun.viewCFG();
+
+    for (auto &bb : cds) {
+      llvm::dbgs() << bb.first << " " << bb.first->getValueName()->first()
+                   << "\n";
+      for (auto &bb2 : bb.second)
+        llvm::dbgs() << "\t" << bb2 << " " << bb2->getValueName()->first()
+                     << "\n";
+    }
+    return cds;
+  }
+  return std::map<const llvm::BasicBlock *, set<const llvm::BasicBlock *>>();
+}
+
+map<const llvm::BasicBlock *, set<const llvm::BasicBlock *>>
+LLVMBasedCFG::getDecisiveControlDependence(const llvm::Function &fun) {
+  if (!fun.isDeclaration()) {
+    deque<const llvm::BasicBlock *> wl;
+    map<const llvm::BasicBlock *, map<const llvm::BasicBlock *, set<pathElem>>>
+        S;
+    set<const llvm::BasicBlock *> condNodes;
+    for (const auto &n : fun) {
+      auto *term{n.getTerminator()};
+      auto numSucc{term->getNumSuccessors()};
+      if (numSucc > 1) {
+        condNodes.insert(&n);
+        for (unsigned int i = 0; i < numSucc; ++i) {
+          auto *succ{term->getSuccessor(i)};
+          wl.push_back(succ);
+          auto &m = S[succ];
+          m[&n].emplace(&n, succ);
+        }
+      }
+    }
+    while (!wl.empty()) {
+      auto n = wl.front();
+      wl.pop_front();
+      auto *term = n->getTerminator();
+      auto numSuccs = term->getNumSuccessors();
+      for (unsigned int i = 0; i < numSuccs; ++i) {
+        auto *m = term->getSuccessor(i);
+        for (auto *p : condNodes) {
+          auto &s1{S[n][p]};
+          auto &s2{S[m][p]};
+          vector<pathElem> diff(s1.size());
+          std::set_difference(s1.begin(), s1.end(), s2.begin(), s2.end(),
+                              diff.begin());
+          if (haveEmptyIntersection(s1, s2)) {
+            s2.insert(s1.begin(), s1.end());
+            wl.push_back(m);
+          }
+        }
+      }
+    }
+    map<const llvm::BasicBlock *, set<const llvm::BasicBlock *>> cds{
+        getNonTerminationSensitiveControlDependence(fun)};
+
+    for (const auto &n : fun) {
+      auto &cd{cds[&n]};
+      for (auto it = cd.begin(); it != cd.end(); it++) {
+        auto numSuccs = (*it)->getTerminator()->getNumSuccessors();
+        if (S[&n][*it].size() == numSuccs) {
+          auto temp = it;
+          temp--;
+          cd.erase(it);
+          it = temp;
+        }
+      }
+    }
+    return cds;
+  }
+  return std::map<const llvm::BasicBlock *, set<const llvm::BasicBlock *>>();
+}
+
+void getOrderDependence() {}
+
+void getStrongOrderDependence() {}
+
+void getWeakOrderDependence() {}
+
+void getDataSensitiveOrderDependence() {}
+
 } // namespace psr
