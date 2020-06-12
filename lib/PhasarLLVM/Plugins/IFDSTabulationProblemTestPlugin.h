@@ -23,20 +23,25 @@ namespace psr {
 
 class IFDSTabulationProblemTestPlugin : public IFDSTabulationProblemPlugin {
 public:
-  IFDSTabulationProblemTestPlugin(LLVMBasedICFG &I,
-                                  std::vector<std::string> EntryPoints);
+  IFDSTabulationProblemTestPlugin(const ProjectIRDB *IRDB,
+                                  const LLVMTypeHierarchy *TH,
+                                  const LLVMBasedICFG *ICF,
+                                  const LLVMPointsToInfo *PT,
+                                  std::set<std::string> EntryPoints);
+
   ~IFDSTabulationProblemTestPlugin() = default;
+
   std::shared_ptr<FlowFunction<const llvm::Value *>>
   getNormalFlowFunction(const llvm::Instruction *curr,
                         const llvm::Instruction *succ) override;
 
   std::shared_ptr<FlowFunction<const llvm::Value *>>
   getCallFlowFunction(const llvm::Instruction *callStmt,
-                      const llvm::Function *destMthd) override;
+                      const llvm::Function *destFun) override;
 
   std::shared_ptr<FlowFunction<const llvm::Value *>>
   getRetFlowFunction(const llvm::Instruction *callSite,
-                     const llvm::Function *calleeMthd,
+                     const llvm::Function *calleeFun,
                      const llvm::Instruction *exitStmt,
                      const llvm::Instruction *retSite) override;
 
@@ -47,15 +52,18 @@ public:
 
   std::shared_ptr<FlowFunction<const llvm::Value *>>
   getSummaryFlowFunction(const llvm::Instruction *callStmt,
-                         const llvm::Function *destMthd) override;
+                         const llvm::Function *destFun) override;
 
   std::map<const llvm::Instruction *, std::set<const llvm::Value *>>
   initialSeeds() override;
 };
 
 extern "C" std::unique_ptr<IFDSTabulationProblemPlugin>
-makeIFDSTabulationProblemTestPlugin(LLVMBasedICFG &I,
-                                    std::vector<std::string> EntryPoints);
+makeIFDSTabulationProblemTestPlugin(const ProjectIRDB *IRDB,
+                                    const LLVMTypeHierarchy *TH,
+                                    const LLVMBasedICFG *ICF,
+                                    const LLVMPointsToInfo *PT,
+                                    std::set<std::string> EntryPoints);
 
 } // namespace psr
 

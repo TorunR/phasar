@@ -1,14 +1,15 @@
-#include <gtest/gtest.h>
+#include "phasar/Utils/LLVMIRToSrc.h"
+#include "phasar/DB/ProjectIRDB.h"
+#include "phasar/PhasarLLVM/ControlFlow/LLVMBasedICFG.h"
+#include "phasar/PhasarLLVM/Passes/ValueAnnotationPass.h"
+#include "phasar/PhasarLLVM/Pointer/LLVMPointsToInfo.h"
+#include "phasar/PhasarLLVM/TypeHierarchy/LLVMTypeHierarchy.h"
+#include "phasar/Utils/LLVMShorthands.h"
+#include "phasar/Utils/Logger.h"
+#include "llvm/IR/IntrinsicInst.h"
+#include "llvm/Support/raw_ostream.h"
+#include "gtest/gtest.h"
 #include <iostream>
-#include <llvm/IR/IntrinsicInst.h>
-#include <llvm/Support/raw_ostream.h>
-#include <phasar/DB/ProjectIRDB.h>
-#include <phasar/PhasarLLVM/ControlFlow/LLVMBasedICFG.h>
-#include <phasar/PhasarLLVM/Passes/ValueAnnotationPass.h>
-#include <phasar/PhasarLLVM/Pointer/LLVMTypeHierarchy.h>
-#include <phasar/Utils/LLVMIRToSrc.h>
-#include <phasar/Utils/LLVMShorthands.h>
-#include <phasar/Utils/Logger.h>
 
 using namespace psr;
 
@@ -16,22 +17,24 @@ using namespace psr;
 
 class LLVMIRToSrcTest : public ::testing::Test {
 protected:
-  const std::string pathToLLFiles =
+  const std::string PathToLlFiles =
       PhasarConfig::getPhasarConfig().PhasarDirectory() +
       "build/test/llvm_test_code/llvmIRtoSrc/";
 
-  ProjectIRDB *IRDB;
-  LLVMTypeHierarchy *TH;
-  LLVMBasedICFG *ICFG;
+  ProjectIRDB *IRDB{};
+  LLVMTypeHierarchy *TH{};
+  LLVMPointsToInfo *PT{};
+  LLVMBasedICFG *ICFG{};
 
-  LLVMIRToSrcTest() {}
-  virtual ~LLVMIRToSrcTest() {}
+  LLVMIRToSrcTest() = default;
+  ~LLVMIRToSrcTest() override = default;
 
-  void Initialize(const std::vector<std::string> &IRFiles) {
-    IRDB = new ProjectIRDB(IRFiles);
-    IRDB->preprocessIR();
+  void initialize(const std::vector<std::string> &IRFiles) {
+    IRDB = new ProjectIRDB(IRFiles, IRDBOptions::WPA);
     TH = new LLVMTypeHierarchy(*IRDB);
-    ICFG = new LLVMBasedICFG(*TH, *IRDB, CallGraphAnalysisType::OTF, {"main"});
+    PT = new LLVMPointsToInfo(*IRDB);
+    ICFG =
+        new LLVMBasedICFG(*IRDB, CallGraphAnalysisType::OTF, {"main"}, TH, PT);
   }
 
   void SetUp() override {
@@ -42,6 +45,7 @@ protected:
   void TearDown() override {
     delete IRDB;
     delete TH;
+    delete PT;
     delete ICFG;
   }
 }; // Test Fixture
@@ -90,7 +94,7 @@ protected:
 //   }
 // }
 
-int main(int argc, char **argv) {
-  ::testing::InitGoogleTest(&argc, argv);
+int main(int Argc, char **Argv) {
+  ::testing::InitGoogleTest(&Argc, Argv);
   return RUN_ALL_TESTS();
 }

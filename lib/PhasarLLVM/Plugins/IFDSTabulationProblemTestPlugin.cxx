@@ -15,11 +15,12 @@
  */
 
 #include <iostream>
+#include <utility>
 
 #include <phasar/PhasarLLVM/ControlFlow/LLVMBasedICFG.h>
 
-#include <phasar/PhasarLLVM/IfdsIde/FlowFunctions/Gen.h>
-#include <phasar/PhasarLLVM/IfdsIde/FlowFunctions/Identity.h>
+#include <phasar/PhasarLLVM/DataFlowSolver/IfdsIde/FlowFunctions/Gen.h>
+#include <phasar/PhasarLLVM/DataFlowSolver/IfdsIde/FlowFunctions/Identity.h>
 
 #include "IFDSTabulationProblemTestPlugin.h"
 using namespace std;
@@ -27,11 +28,13 @@ using namespace psr;
 
 namespace psr {
 
-unique_ptr<IFDSTabulationProblemPlugin>
-makeIFDSTabulationProblemTestPlugin(LLVMBasedICFG &I,
-                                    vector<string> EntryPoints) {
+unique_ptr<IFDSTabulationProblemPlugin> makeIFDSTabulationProblemTestPlugin(
+    const ProjectIRDB *IRDB, const LLVMTypeHierarchy *TH,
+    const LLVMBasedICFG *ICF, const LLVMPointsToInfo *PT,
+    std::set<std::string> EntryPoints) {
   return unique_ptr<IFDSTabulationProblemPlugin>(
-      new IFDSTabulationProblemTestPlugin(I, EntryPoints));
+      new IFDSTabulationProblemTestPlugin(IRDB, TH, ICF, PT,
+                                          std::move(EntryPoints)));
 }
 
 __attribute__((constructor)) void init() {
@@ -45,38 +48,40 @@ __attribute__((destructor)) void fini() {
 }
 
 IFDSTabulationProblemTestPlugin::IFDSTabulationProblemTestPlugin(
-    LLVMBasedICFG &I, vector<string> EntryPoints)
-    : IFDSTabulationProblemPlugin(I, EntryPoints) {}
+    const ProjectIRDB *IRDB, const LLVMTypeHierarchy *TH,
+    const LLVMBasedICFG *ICF, const LLVMPointsToInfo *PT,
+    std::set<std::string> EntryPoints)
+    : IFDSTabulationProblemPlugin(IRDB, TH, ICF, PT, std::move(EntryPoints)) {}
 
 shared_ptr<FlowFunction<const llvm::Value *>>
 IFDSTabulationProblemTestPlugin::getNormalFlowFunction(
-    const llvm::Instruction *curr, const llvm::Instruction *succ) {
+    const llvm::Instruction *Curr, const llvm::Instruction *Succ) {
   return Identity<const llvm::Value *>::getInstance();
 }
 
 shared_ptr<FlowFunction<const llvm::Value *>>
 IFDSTabulationProblemTestPlugin::getCallFlowFunction(
-    const llvm::Instruction *callStmt, const llvm::Function *destMthd) {
+    const llvm::Instruction *CallStmt, const llvm::Function *DestFun) {
   return Identity<const llvm::Value *>::getInstance();
 }
 
 shared_ptr<FlowFunction<const llvm::Value *>>
 IFDSTabulationProblemTestPlugin::getRetFlowFunction(
-    const llvm::Instruction *callSite, const llvm::Function *calleeMthd,
-    const llvm::Instruction *exitStmt, const llvm::Instruction *retSite) {
+    const llvm::Instruction *CallSite, const llvm::Function *CalleeFun,
+    const llvm::Instruction *ExitStmt, const llvm::Instruction *RetSite) {
   return Identity<const llvm::Value *>::getInstance();
 }
 
 shared_ptr<FlowFunction<const llvm::Value *>>
 IFDSTabulationProblemTestPlugin::getCallToRetFlowFunction(
-    const llvm::Instruction *callSite, const llvm::Instruction *retSite,
-    set<const llvm::Function *> callees) {
+    const llvm::Instruction *CallSite, const llvm::Instruction *RetSite,
+    set<const llvm::Function *> Callees) {
   return Identity<const llvm::Value *>::getInstance();
 }
 
 shared_ptr<FlowFunction<const llvm::Value *>>
 IFDSTabulationProblemTestPlugin::getSummaryFlowFunction(
-    const llvm::Instruction *callStmt, const llvm::Function *destMthd) {
+    const llvm::Instruction *CallStmt, const llvm::Function *DestFun) {
   return nullptr;
 }
 
@@ -85,8 +90,9 @@ IFDSTabulationProblemTestPlugin::initialSeeds() {
   cout << "IFDSTabulationProblemTestPlugin::initialSeeds()\n";
   map<const llvm::Instruction *, set<const llvm::Value *>> SeedMap;
   for (auto &EntryPoint : EntryPoints) {
-    SeedMap.insert(std::make_pair(&icfg.getMethod(EntryPoint)->front().front(),
-                                  set<const llvm::Value *>({zeroValue()})));
+    SeedMap.insert(
+        std::make_pair(&ICF->getFunction(EntryPoint)->front().front(),
+                       set<const llvm::Value *>({getZeroValue()})));
   }
   return SeedMap;
 }

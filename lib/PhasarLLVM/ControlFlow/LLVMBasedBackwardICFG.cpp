@@ -9,36 +9,35 @@
 
 #include <memory>
 
-#include <llvm/IR/CallSite.h>
-#include <llvm/IR/Constants.h>
-#include <llvm/IR/Function.h>
-#include <llvm/IR/InstIterator.h>
-#include <llvm/IR/Instruction.h>
-#include <llvm/IR/Module.h>
+#include "llvm/IR/CallSite.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/InstIterator.h"
+#include "llvm/IR/Instruction.h"
+#include "llvm/IR/Module.h"
 
-#include <boost/graph/copy.hpp>
-#include <boost/graph/depth_first_search.hpp>
-#include <boost/graph/graph_utility.hpp>
-#include <boost/graph/graphviz.hpp>
-#include <boost/log/sources/record_ostream.hpp>
+#include "boost/graph/copy.hpp"
+#include "boost/graph/depth_first_search.hpp"
+#include "boost/graph/graph_utility.hpp"
+#include "boost/graph/graphviz.hpp"
+#include "boost/log/sources/record_ostream.hpp"
 
-#include <phasar/PhasarLLVM/ControlFlow/LLVMBasedICFG.h>
-#include <phasar/PhasarLLVM/ControlFlow/Resolver/CHAResolver.h>
-#include <phasar/PhasarLLVM/ControlFlow/Resolver/DTAResolver.h>
-#include <phasar/PhasarLLVM/ControlFlow/Resolver/OTFResolver.h>
-#include <phasar/PhasarLLVM/ControlFlow/Resolver/RTAResolver.h>
-#include <phasar/PhasarLLVM/ControlFlow/Resolver/Resolver.h>
+#include "phasar/PhasarLLVM/ControlFlow/LLVMBasedICFG.h"
+#include "phasar/PhasarLLVM/ControlFlow/Resolver/CHAResolver.h"
+#include "phasar/PhasarLLVM/ControlFlow/Resolver/DTAResolver.h"
+#include "phasar/PhasarLLVM/ControlFlow/Resolver/OTFResolver.h"
+#include "phasar/PhasarLLVM/ControlFlow/Resolver/RTAResolver.h"
+#include "phasar/PhasarLLVM/ControlFlow/Resolver/Resolver.h"
 
-#include <phasar/Utils/LLVMShorthands.h>
-#include <phasar/Utils/Logger.h>
-#include <phasar/Utils/Macros.h>
-#include <phasar/Utils/PAMM.h>
+#include "phasar/Utils/LLVMShorthands.h"
+#include "phasar/Utils/Logger.h"
+#include "phasar/Utils/PAMM.h"
+#include "phasar/Utils/Utilities.h"
 
-#include <phasar/DB/ProjectIRDB.h>
-#include <phasar/PhasarLLVM/Pointer/LLVMTypeHierarchy.h>
-#include <phasar/PhasarLLVM/Pointer/VTable.h>
+#include "phasar/DB/ProjectIRDB.h"
+#include "phasar/PhasarLLVM/TypeHierarchy/LLVMTypeHierarchy.h"
 
-#include <phasar/PhasarLLVM/ControlFlow/LLVMBasedBackwardICFG.h>
+#include "phasar/PhasarLLVM/ControlFlow/LLVMBasedBackwardICFG.h"
 
 using namespace psr;
 using namespace std;
@@ -46,124 +45,121 @@ namespace psr {
 
 LLVMBasedBackwardsICFG::LLVMBasedBackwardsICFG(LLVMBasedICFG &ICFG)
     : ForwardICFG(ICFG) {
-  auto cgCopy = ForwardICFG.cg;
-  boost::copy_graph(boost::make_reverse_graph(cgCopy), ForwardICFG.cg);
+  auto CgCopy = ForwardICFG.CallGraph;
+  boost::copy_graph(boost::make_reverse_graph(CgCopy), ForwardICFG.CallGraph);
 }
-
-LLVMBasedBackwardsICFG::LLVMBasedBackwardsICFG(LLVMTypeHierarchy &STH,
-                                               ProjectIRDB &IRDB)
-    : ForwardICFG(STH, IRDB) {
-  auto cgCopy = ForwardICFG.cg;
-  boost::copy_graph(boost::make_reverse_graph(cgCopy), ForwardICFG.cg);
-};
 
 LLVMBasedBackwardsICFG::LLVMBasedBackwardsICFG(
-    LLVMTypeHierarchy &STH, ProjectIRDB &IRDB, CallGraphAnalysisType CGType,
-    const std::vector<std::string> &EntryPoints)
-    : ForwardICFG(STH, IRDB, CGType, EntryPoints) {
-  auto cgCopy = ForwardICFG.cg;
-  boost::copy_graph(boost::make_reverse_graph(cgCopy), ForwardICFG.cg);
-};
-
-LLVMBasedBackwardsICFG::LLVMBasedBackwardsICFG(
-    LLVMTypeHierarchy &STH, ProjectIRDB &IRDB, const llvm::Module &M,
-    CallGraphAnalysisType CGType, std::vector<std::string> EntryPoints)
-    : ForwardICFG(STH, IRDB, M, CGType, EntryPoints) {
-  auto cgCopy = ForwardICFG.cg;
-  boost::copy_graph(boost::make_reverse_graph(cgCopy), ForwardICFG.cg);
-};
-
-bool LLVMBasedBackwardsICFG::isVirtualFunctionCall(llvm::ImmutableCallSite CS) {
-  return ForwardICFG.isVirtualFunctionCall(CS);
+    ProjectIRDB &IRDB, CallGraphAnalysisType CGType,
+    const std::set<std::string> &EntryPoints, LLVMTypeHierarchy *TH,
+    LLVMPointsToInfo *PT, SoundnessFlag SF)
+    : ForwardICFG(IRDB, CGType, EntryPoints, TH, PT, SF) {
+  auto CgCopy = ForwardICFG.CallGraph;
+  boost::copy_graph(boost::make_reverse_graph(CgCopy), ForwardICFG.CallGraph);
 }
 
-std::set<const llvm::Function *> LLVMBasedBackwardsICFG::getAllMethods() {
-  return ForwardICFG.getAllMethods();
+bool LLVMBasedBackwardsICFG::isCallStmt(const llvm::Instruction *Stmt) const {
+  return ForwardICFG.isCallStmt(Stmt);
 }
 
-const llvm::Function *
-LLVMBasedBackwardsICFG::getMethod(const std::string &fun) {
-  return ForwardICFG.getMethod(fun);
+bool LLVMBasedBackwardsICFG::isIndirectFunctionCall(
+    const llvm::Instruction *Stmt) const {
+  return ForwardICFG.isIndirectFunctionCall(Stmt);
+}
+
+bool LLVMBasedBackwardsICFG::isVirtualFunctionCall(
+    const llvm::Instruction *Stmt) const {
+  return ForwardICFG.isVirtualFunctionCall(Stmt);
 }
 
 std::set<const llvm::Function *>
-LLVMBasedBackwardsICFG::getCalleesOfCallAt(const llvm::Instruction *n) {
-  return ForwardICFG.getCalleesOfCallAt(n);
+LLVMBasedBackwardsICFG::getAllFunctions() const {
+  return ForwardICFG.getAllFunctions();
+}
+
+const llvm::Function *
+LLVMBasedBackwardsICFG::getFunction(const std::string &Fun) const {
+  return ForwardICFG.getFunction(Fun);
+}
+
+std::set<const llvm::Function *>
+LLVMBasedBackwardsICFG::getCalleesOfCallAt(const llvm::Instruction *N) const {
+  return ForwardICFG.getCalleesOfCallAt(N);
 }
 
 std::set<const llvm::Instruction *>
-LLVMBasedBackwardsICFG::getCallersOf(const llvm::Function *m) {
-  return ForwardICFG.getCallersOf(m);
+LLVMBasedBackwardsICFG::getCallersOf(const llvm::Function *M) const {
+  return ForwardICFG.getCallersOf(M);
 }
 
 std::set<const llvm::Instruction *>
-LLVMBasedBackwardsICFG::getCallsFromWithin(const llvm::Function *m) {
-  return ForwardICFG.getCallsFromWithin(m);
+LLVMBasedBackwardsICFG::getCallsFromWithin(const llvm::Function *M) const {
+  return ForwardICFG.getCallsFromWithin(M);
 }
 
 std::set<const llvm::Instruction *>
-LLVMBasedBackwardsICFG::getStartPointsOf(const llvm::Function *m) {
-  return ForwardICFG.getExitPointsOf(m);
+LLVMBasedBackwardsICFG::getStartPointsOf(const llvm::Function *M) const {
+  return ForwardICFG.getExitPointsOf(M);
 }
 
 std::set<const llvm::Instruction *>
-LLVMBasedBackwardsICFG::getExitPointsOf(const llvm::Function *fun) {
-  return ForwardICFG.getStartPointsOf(fun);
+LLVMBasedBackwardsICFG::getExitPointsOf(const llvm::Function *Fun) const {
+  return ForwardICFG.getStartPointsOf(Fun);
 }
 
 std::set<const llvm::Instruction *>
-LLVMBasedBackwardsICFG::getReturnSitesOfCallAt(const llvm::Instruction *n) {
+LLVMBasedBackwardsICFG::getReturnSitesOfCallAt(
+    const llvm::Instruction *N) const {
   std::set<const llvm::Instruction *> ReturnSites;
-  if (auto Call = llvm::dyn_cast<llvm::CallInst>(n)) {
-    if (auto Prev = Call->getPrevNode())
-      ReturnSites.insert(Prev);
+  if (const auto *Call = llvm::dyn_cast<llvm::CallInst>(N)) {
+    for (const auto *Succ : this->getSuccsOf(Call))
+      ReturnSites.insert(Succ);
   }
-  if (auto Invoke = llvm::dyn_cast<llvm::InvokeInst>(n)) {
+  if (const auto *Invoke = llvm::dyn_cast<llvm::InvokeInst>(N)) {
     ReturnSites.insert(&Invoke->getNormalDest()->back());
     ReturnSites.insert(&Invoke->getUnwindDest()->back());
   }
   return ReturnSites;
 }
 
-bool LLVMBasedBackwardsICFG::isCallStmt(const llvm::Instruction *stmt) {
-  return ForwardICFG.isCallStmt(stmt);
-}
-
 std::set<const llvm::Instruction *>
-LLVMBasedBackwardsICFG::allNonCallStartNodes() {
+LLVMBasedBackwardsICFG::allNonCallStartNodes() const {
   return ForwardICFG.allNonCallStartNodes();
 }
 
 const llvm::Instruction *
-LLVMBasedBackwardsICFG::getLastInstructionOf(const std::string &name) {
-  return ForwardICFG.getLastInstructionOf(name);
+LLVMBasedBackwardsICFG::getLastInstructionOf(const std::string &Name) {
+  return ForwardICFG.getLastInstructionOf(Name);
 }
 
 std::vector<const llvm::Instruction *>
-LLVMBasedBackwardsICFG::getAllInstructionsOfFunction(const std::string &name) {
-  return ForwardICFG.getAllInstructionsOfFunction(name);
+LLVMBasedBackwardsICFG::getAllInstructionsOfFunction(const std::string &Name) {
+  return ForwardICFG.getAllInstructionsOfFunction(Name);
 }
 
-void LLVMBasedBackwardsICFG::mergeWith(const LLVMBasedBackwardsICFG &other) {
-  ForwardICFG.mergeWith(other.ForwardICFG);
+void LLVMBasedBackwardsICFG::mergeWith(const LLVMBasedBackwardsICFG &Other) {
+  ForwardICFG.mergeWith(Other.ForwardICFG);
 }
 
-bool LLVMBasedBackwardsICFG::isPrimitiveFunction(const std::string &name) {
-  return ForwardICFG.isPrimitiveFunction(name);
+bool LLVMBasedBackwardsICFG::isPrimitiveFunction(const std::string &Name) {
+  return ForwardICFG.isPrimitiveFunction(Name);
 }
 
-void LLVMBasedBackwardsICFG::print() { ForwardICFG.print(); }
-
-void LLVMBasedBackwardsICFG::printAsDot(const std::string &filename) {
-  ForwardICFG.printAsDot(filename);
+void LLVMBasedBackwardsICFG::print(std::ostream &OS) const {
+  ForwardICFG.print(OS);
 }
 
-void LLVMBasedBackwardsICFG::printInternalPTGAsDot(
-    const std::string &filename) {
-  ForwardICFG.printInternalPTGAsDot(filename);
+void LLVMBasedBackwardsICFG::printAsDot(std::ostream &OS) const {
+  ForwardICFG.printAsDot(OS);
 }
 
-json LLVMBasedBackwardsICFG::getAsJson() { return ForwardICFG.getAsJson(); }
+void LLVMBasedBackwardsICFG::printInternalPTGAsDot(std::ostream &OS) const {
+  ForwardICFG.printInternalPTGAsDot(OS);
+}
+
+nlohmann::json LLVMBasedBackwardsICFG::getAsJson() const {
+  return ForwardICFG.getAsJson();
+}
 
 unsigned LLVMBasedBackwardsICFG::getNumOfVertices() {
   return ForwardICFG.getNumOfVertices();
@@ -173,15 +169,11 @@ unsigned LLVMBasedBackwardsICFG::getNumOfEdges() {
   return ForwardICFG.getNumOfEdges();
 }
 
-void LLVMBasedBackwardsICFG::exportPATBCJSON() {
-  return ForwardICFG.exportPATBCJSON();
-}
-
-PointsToGraph &LLVMBasedBackwardsICFG::getWholeModulePTG() {
+const LLVMPointsToGraph &LLVMBasedBackwardsICFG::getWholeModulePTG() const {
   return ForwardICFG.getWholeModulePTG();
 }
 
-std::vector<std::string>
+std::vector<const llvm::Function *>
 LLVMBasedBackwardsICFG::getDependencyOrderedFunctions() {
   return ForwardICFG.getDependencyOrderedFunctions();
 }

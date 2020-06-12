@@ -10,20 +10,18 @@
 #ifndef PHASAR_PHASARLLVM_CONTROLFLOW_LLVMBASEDBACKWARDICFG_H_
 #define PHASAR_PHASARLLVM_CONTROLFLOW_LLVMBASEDBACKWARDICFG_H_
 
-#include <functional>
 #include <iosfwd>
 #include <map>
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
-#include <boost/graph/adjacency_list.hpp>
-
-#include <phasar/PhasarLLVM/ControlFlow/ICFG.h>
-#include <phasar/PhasarLLVM/ControlFlow/LLVMBasedBackwardCFG.h>
-#include <phasar/PhasarLLVM/ControlFlow/LLVMBasedICFG.h>
-#include <phasar/PhasarLLVM/Pointer/PointsToGraph.h>
+#include "phasar/PhasarLLVM/ControlFlow/ICFG.h"
+#include "phasar/PhasarLLVM/ControlFlow/LLVMBasedBackwardCFG.h"
+#include "phasar/PhasarLLVM/ControlFlow/LLVMBasedICFG.h"
+#include "phasar/Utils/SoundnessFlag.h"
 
 namespace llvm {
 class Instruction;
@@ -38,6 +36,7 @@ namespace psr {
 class Resolver;
 class ProjectIRDB;
 class LLVMTypeHierarchy;
+class LLVMPointsToGraph;
 
 class LLVMBasedBackwardsICFG
     : public ICFG<const llvm::Instruction *, const llvm::Function *>,
@@ -48,73 +47,72 @@ private:
 public:
   LLVMBasedBackwardsICFG(LLVMBasedICFG &ICFG);
 
-  LLVMBasedBackwardsICFG(LLVMTypeHierarchy &STH, ProjectIRDB &IRDB);
-
-  LLVMBasedBackwardsICFG(LLVMTypeHierarchy &STH, ProjectIRDB &IRDB,
-                         CallGraphAnalysisType CGType,
-                         const std::vector<std::string> &EntryPoints = {
-                             "main"});
-
-  LLVMBasedBackwardsICFG(LLVMTypeHierarchy &STH, ProjectIRDB &IRDB,
-                         const llvm::Module &M, CallGraphAnalysisType CGType,
-                         std::vector<std::string> EntryPoints = {});
+  LLVMBasedBackwardsICFG(ProjectIRDB &IRDB, CallGraphAnalysisType CGType,
+                         const std::set<std::string> &EntryPoints = {},
+                         LLVMTypeHierarchy *TH = nullptr,
+                         LLVMPointsToInfo *PT = nullptr,
+                         SoundnessFlag SF = SoundnessFlag::SOUNDY);
 
   ~LLVMBasedBackwardsICFG() override = default;
 
-  std::set<const llvm::Function *> getAllMethods();
+  std::set<const llvm::Function *> getAllFunctions() const override;
 
-  bool isVirtualFunctionCall(llvm::ImmutableCallSite CS);
+  bool isCallStmt(const llvm::Instruction *Stmt) const override;
 
-  const llvm::Function *getMethod(const std::string &fun) override;
+  bool isIndirectFunctionCall(const llvm::Instruction *Stmt) const override;
+
+  bool isVirtualFunctionCall(const llvm::Instruction *Stmt) const override;
+
+  const llvm::Function *getFunction(const std::string &Fun) const override;
 
   std::set<const llvm::Function *>
-  getCalleesOfCallAt(const llvm::Instruction *n) override;
+  getCalleesOfCallAt(const llvm::Instruction *N) const override;
 
   std::set<const llvm::Instruction *>
-  getCallersOf(const llvm::Function *m) override;
+  getCallersOf(const llvm::Function *M) const override;
 
   std::set<const llvm::Instruction *>
-  getCallsFromWithin(const llvm::Function *m) override;
+  getCallsFromWithin(const llvm::Function *M) const override;
 
   std::set<const llvm::Instruction *>
-  getStartPointsOf(const llvm::Function *m) override;
+  getStartPointsOf(const llvm::Function *M) const override;
 
   std::set<const llvm::Instruction *>
-  getExitPointsOf(const llvm::Function *fun) override;
+  getExitPointsOf(const llvm::Function *Fun) const override;
 
   std::set<const llvm::Instruction *>
-  getReturnSitesOfCallAt(const llvm::Instruction *n) override;
+  getReturnSitesOfCallAt(const llvm::Instruction *N) const override;
 
-  bool isCallStmt(const llvm::Instruction *stmt) override;
+  std::set<const llvm::Instruction *> allNonCallStartNodes() const override;
 
-  std::set<const llvm::Instruction *> allNonCallStartNodes() override;
-
-  const llvm::Instruction *getLastInstructionOf(const std::string &name);
+  const llvm::Instruction *getLastInstructionOf(const std::string &Name);
 
   std::vector<const llvm::Instruction *>
-  getAllInstructionsOfFunction(const std::string &name);
+  getAllInstructionsOfFunction(const std::string &Name);
 
   void mergeWith(const LLVMBasedBackwardsICFG &other);
 
-  bool isPrimitiveFunction(const std::string &name);
+  bool isPrimitiveFunction(const std::string &Name);
 
-  void print();
+  using LLVMBasedBackwardCFG::print; // tell the compiler we wish to have both
+                                     // prints
+  void print(std::ostream &OS) const override;
 
-  void printAsDot(const std::string &filename);
+  void printAsDot(std::ostream &OS) const;
 
-  void printInternalPTGAsDot(const std::string &filename);
+  void printInternalPTGAsDot(std::ostream &OS) const;
 
-  json getAsJson() override;
+  using LLVMBasedBackwardCFG::getAsJson; // tell the compiler we wish to have
+                                         // both prints
+  nlohmann::json getAsJson() const override;
 
   unsigned getNumOfVertices();
 
   unsigned getNumOfEdges();
 
-  void exportPATBCJSON();
+  const LLVMPointsToGraph &getWholeModulePTG() const;
 
-  PointsToGraph &getWholeModulePTG();
-
-  std::vector<std::string> getDependencyOrderedFunctions();
+  std::vector<const llvm::Function *> getDependencyOrderedFunctions();
 };
 
 } // namespace psr

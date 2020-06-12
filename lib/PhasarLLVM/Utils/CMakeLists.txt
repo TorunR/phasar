@@ -5,6 +5,11 @@ set(PHASAR_LINK_LIBS
   phasar_utils
 )
 
+set(LLVM_LINK_COMPONENTS
+  Core
+  Support
+)
+
 # Handle the library files
 if(BUILD_SHARED_LIBS)
   add_phasar_library(phasar_phasarllvm_utils
@@ -18,10 +23,10 @@ else()
   )
 endif()
 
+find_package(Boost COMPONENTS filesystem REQUIRED)
 target_link_libraries(phasar_phasarllvm_utils
   LINK_PUBLIC
-  boost_filesystem
-  boost_system
+  ${Boost_LIBRARIES}
 )
 
 set_target_properties(phasar_phasarllvm_utils

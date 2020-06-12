@@ -16,7 +16,6 @@ set(LLVM_LINK_COMPONENTS
   BitWriter
 )
 
-
 if(BUILD_SHARED_LIBS)
   add_phasar_library(phasar_utils
     SHARED
@@ -29,9 +28,13 @@ else()
   )
 endif()
 
+target_include_directories(phasar_utils PUBLIC ${LLVM_INCLUDE_DIRS})
+target_compile_definitions(phasar_utils PUBLIC -DBOOST_LOG_DYN_LINK)
+
+find_package(Boost COMPONENTS log REQUIRED)
 target_link_libraries(phasar_utils
   LINK_PUBLIC
-  boost_log
+  ${Boost_LIBRARIES}
   ${CMAKE_DL_LIBS}
 )
 

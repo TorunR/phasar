@@ -74,19 +74,53 @@ template <typename V> struct ValuePrinter {
   }
 };
 
-template <typename M> struct MethodPrinter {
-  MethodPrinter() = default;
-  MethodPrinter(const MethodPrinter &) = delete;
-  MethodPrinter &operator=(const MethodPrinter &) = delete;
-  MethodPrinter(MethodPrinter &&) = delete;
-  MethodPrinter &operator=(MethodPrinter &&) = delete;
-  virtual ~MethodPrinter() = default;
+template <typename T> struct TypePrinter {
+  TypePrinter() = default;
+  TypePrinter(const TypePrinter &) = delete;
+  TypePrinter &operator=(const TypePrinter &) = delete;
+  TypePrinter(TypePrinter &&) = delete;
+  TypePrinter &operator=(TypePrinter &&) = delete;
+  virtual ~TypePrinter() = default;
 
-  virtual void printMethod(std::ostream &os, M m) const = 0;
+  virtual void printType(std::ostream &os, T t) const = 0;
 
-  virtual std::string MtoString(M m) const {
+  virtual std::string TtoString(T t) const {
     std::stringstream ss;
-    printMethod(ss, m);
+    printType(ss, t);
+    return ss.str();
+  }
+};
+
+template <typename L> struct EdgeFactPrinter {
+  EdgeFactPrinter() = default;
+  EdgeFactPrinter(const EdgeFactPrinter &) = delete;
+  EdgeFactPrinter &operator=(const EdgeFactPrinter &) = delete;
+  EdgeFactPrinter(EdgeFactPrinter &&) = delete;
+  EdgeFactPrinter &operator=(EdgeFactPrinter &&) = delete;
+  virtual ~EdgeFactPrinter() = default;
+
+  virtual void printEdgeFact(std::ostream &os, L l) const = 0;
+
+  virtual std::string LtoString(L l) const {
+    std::stringstream ss;
+    printEdgeFact(ss, l);
+    return ss.str();
+  }
+};
+
+template <typename F> struct FunctionPrinter {
+  FunctionPrinter() = default;
+  FunctionPrinter(const FunctionPrinter &) = delete;
+  FunctionPrinter &operator=(const FunctionPrinter &) = delete;
+  FunctionPrinter(FunctionPrinter &&) = delete;
+  FunctionPrinter &operator=(FunctionPrinter &&) = delete;
+  virtual ~FunctionPrinter() = default;
+
+  virtual void printFunction(std::ostream &os, F f) const = 0;
+
+  virtual std::string FtoString(F f) const {
+    std::stringstream ss;
+    printFunction(ss, f);
     return ss.str();
   }
 };

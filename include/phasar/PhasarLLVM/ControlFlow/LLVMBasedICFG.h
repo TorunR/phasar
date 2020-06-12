@@ -17,19 +17,20 @@
 #ifndef PHASAR_PHASARLLVM_CONTROLFLOW_LLVMBASEDICFG_H_
 #define PHASAR_PHASARLLVM_CONTROLFLOW_LLVMBASEDICFG_H_
 
-#include <functional>
 #include <iosfwd>
-#include <map>
+#include <iostream>
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
-#include <boost/graph/adjacency_list.hpp>
+#include "boost/graph/adjacency_list.hpp"
 
-#include <phasar/PhasarLLVM/ControlFlow/ICFG.h>
-#include <phasar/PhasarLLVM/ControlFlow/LLVMBasedCFG.h>
-#include <phasar/PhasarLLVM/Pointer/PointsToGraph.h>
+#include "phasar/PhasarLLVM/ControlFlow/ICFG.h"
+#include "phasar/PhasarLLVM/ControlFlow/LLVMBasedCFG.h"
+#include "phasar/PhasarLLVM/Pointer/LLVMPointsToGraph.h"
+#include "phasar/Utils/SoundnessFlag.h"
 
 namespace llvm {
 class Instruction;
@@ -44,6 +45,7 @@ namespace psr {
 class Resolver;
 class ProjectIRDB;
 class LLVMTypeHierarchy;
+class LLVMPointsToInfo;
 
 class LLVMBasedICFG
     : public ICFG<const llvm::Instruction *, const llvm::Function *>,
@@ -51,10 +53,14 @@ class LLVMBasedICFG
   friend class LLVMBasedBackwardsICFG;
 
 private:
-  CallGraphAnalysisType CGType;
-  LLVMTypeHierarchy &CH;
   ProjectIRDB &IRDB;
-  PointsToGraph WholeModulePTG;
+  CallGraphAnalysisType CGType;
+  SoundnessFlag SF;
+  bool UserTHInfos = true;
+  bool UserPTInfos = true;
+  LLVMTypeHierarchy *TH;
+  LLVMPointsToInfo *PT;
+  LLVMPointsToGraph WholeModulePTG;
   std::unordered_set<const llvm::Function *> VisitedFunctions;
   /// Keeps track of the call-sites already resolved
   // std::vector<const llvm::Instruction *> CallStack;
@@ -67,26 +73,24 @@ private:
 
   // The VertexProperties for our call-graph.
   struct VertexProperties {
-    const llvm::Function *function = nullptr;
-    std::string functionName;
-    bool isDeclaration;
+    const llvm::Function *F = nullptr;
     VertexProperties() = default;
-    VertexProperties(const llvm::Function *f, bool isDecl = false);
+    VertexProperties(const llvm::Function *F);
+    std::string getFunctionName() const;
   };
 
   // The EdgeProperties for our call-graph.
   struct EdgeProperties {
-    const llvm::Instruction *callsite = nullptr;
-    std::string ir_code;
-    size_t id = 0;
+    const llvm::Instruction *CS = nullptr;
+    size_t ID = 0;
     EdgeProperties() = default;
-    EdgeProperties(const llvm::Instruction *i);
+    EdgeProperties(const llvm::Instruction *I);
+    std::string getCallSiteAsString() const;
   };
 
   /// Specify the type of graph to be used.
-  typedef boost::adjacency_list<boost::multisetS, boost::vecS,
-                                boost::bidirectionalS, VertexProperties,
-                                EdgeProperties>
+  typedef boost::adjacency_list<boost::vecS, boost::vecS, boost::bidirectionalS,
+                                VertexProperties, EdgeProperties>
       bidigraph_t;
 
   // Let us have some handy typedefs.
@@ -97,82 +101,139 @@ private:
   typedef boost::graph_traits<bidigraph_t>::in_edge_iterator in_edge_iterator;
 
   /// The call graph.
-  bidigraph_t cg;
+  bidigraph_t CallGraph;
 
   /// Maps function names to the corresponding vertex id.
-  std::unordered_map<std::string, vertex_t> function_vertex_map;
+  std::unordered_map<const llvm::Function *, vertex_t> FunctionVertexMap;
 
-  void constructionWalker(const llvm::Function *F, Resolver *resolver);
+  void constructionWalker(const llvm::Function *F, Resolver &Resolver);
 
   struct dependency_visitor;
 
 public:
-  LLVMBasedICFG(LLVMTypeHierarchy &STH, ProjectIRDB &IRDB);
+  /**
+   * Why a multimap?  A given instruction might have multiple target functions.
+   * For example, if the points-to analysis indicates that a pointer could
+   * be for multiple different types.
+   */
+  typedef std::unordered_multimap<const llvm::Instruction *,
+                                  const llvm::Function *>
+      OutEdgesAndTargets;
 
-  LLVMBasedICFG(LLVMTypeHierarchy &STH, ProjectIRDB &IRDB,
-                CallGraphAnalysisType CGType,
-                const std::vector<std::string> &EntryPoints = {"main"});
+  LLVMBasedICFG(ProjectIRDB &IRDB, CallGraphAnalysisType CGType,
+                const std::set<std::string> &EntryPoints = {},
+                LLVMTypeHierarchy *TH = nullptr, LLVMPointsToInfo *PT = nullptr,
+                SoundnessFlag SF = SoundnessFlag::SOUNDY);
 
-  LLVMBasedICFG(LLVMTypeHierarchy &STH, ProjectIRDB &IRDB,
-                const llvm::Module &M, CallGraphAnalysisType CGType,
-                std::vector<std::string> EntryPoints = {});
+  LLVMBasedICFG(const LLVMBasedICFG &);
 
-  ~LLVMBasedICFG() override = default;
+  ~LLVMBasedICFG() override;
 
-  std::set<const llvm::Function *> getAllMethods();
+  std::set<const llvm::Function *> getAllFunctions() const override;
 
-  bool isVirtualFunctionCall(llvm::ImmutableCallSite CS);
+  bool isIndirectFunctionCall(const llvm::Instruction *N) const override;
 
-  const llvm::Function *getMethod(const std::string &fun) override;
+  bool isVirtualFunctionCall(const llvm::Instruction *N) const override;
 
+  const llvm::Function *getFunction(const std::string &Fun) const override;
+
+  /**
+   * Essentially the same as `getCallsFromWithin`, but uses the callgraph
+   * data directly.
+   * \return all call sites within a given method.
+   */
+  std::vector<const llvm::Instruction *>
+  getOutEdges(const llvm::Function *Fun) const;
+
+  /**
+   * For the supplied function, get all the output edge Instructions and
+   * the corresponding Function.  This pulls data directly from the callgraph.
+   *
+   * \return the edges and the target function for each edge.
+   */
+  OutEdgesAndTargets getOutEdgeAndTarget(const llvm::Function *Fun) const;
+
+  /**
+   * Removes all edges found for the given instruction within the
+   * sourceFunction. \return number of edges removed
+   */
+  size_t removeEdges(const llvm::Function *F, const llvm::Instruction *Inst);
+
+  /**
+   * Removes the vertex for the given function.
+   * CAUTION: does not remove edges, invoking this on a function with
+   * IN or OUT edges is a bad idea.
+   * \return true iff the vertex was found and removed.
+   */
+  bool removeVertex(const llvm::Function *Fun);
+
+  /**
+   * \return the total number of in edges to the vertex representing this
+   * Function.
+   */
+  size_t getCallerCount(const llvm::Function *Fun) const;
+
+  /**
+   * \return all callee methods for a given call that might be called.
+   */
   std::set<const llvm::Function *>
-  getCalleesOfCallAt(const llvm::Instruction *n) override;
+  getCalleesOfCallAt(const llvm::Instruction *N) const override;
+
+  /**
+   * \return all caller statements/nodes of a given method.
+   */
+  std::set<const llvm::Instruction *>
+  getCallersOf(const llvm::Function *Fun) const override;
+
+  /**
+   * \return all call sites within a given method.
+   */
+  std::set<const llvm::Instruction *>
+  getCallsFromWithin(const llvm::Function *Fun) const override;
 
   std::set<const llvm::Instruction *>
-  getCallersOf(const llvm::Function *m) override;
+  getStartPointsOf(const llvm::Function *M) const override;
 
   std::set<const llvm::Instruction *>
-  getCallsFromWithin(const llvm::Function *m) override;
+  getExitPointsOf(const llvm::Function *Fun) const override;
 
   std::set<const llvm::Instruction *>
-  getStartPointsOf(const llvm::Function *m) override;
+  getReturnSitesOfCallAt(const llvm::Instruction *N) const override;
 
-  std::set<const llvm::Instruction *>
-  getExitPointsOf(const llvm::Function *fun) override;
+  bool isCallStmt(const llvm::Instruction *Stmt) const override;
 
-  std::set<const llvm::Instruction *>
-  getReturnSitesOfCallAt(const llvm::Instruction *n) override;
+  std::set<const llvm::Instruction *> allNonCallStartNodes() const override;
 
-  bool isCallStmt(const llvm::Instruction *stmt) override;
-
-  std::set<const llvm::Instruction *> allNonCallStartNodes() override;
-
-  const llvm::Instruction *getLastInstructionOf(const std::string &name);
+  const llvm::Instruction *getLastInstructionOf(const std::string &Name);
 
   std::vector<const llvm::Instruction *>
-  getAllInstructionsOfFunction(const std::string &name);
+  getAllInstructionsOfFunction(const std::string &Name);
 
-  void mergeWith(const LLVMBasedICFG &other);
+  void mergeWith(const LLVMBasedICFG &Other);
 
-  bool isPrimitiveFunction(const std::string &name);
+  bool isPrimitiveFunction(const std::string &Name);
 
-  void print();
+  using LLVMBasedCFG::print; // tell the compiler we wish to have both prints
+  void print(std::ostream &OS = std::cout) const override;
 
-  void printAsDot(const std::string &filename);
+  void printAsDot(std::ostream &OS = std::cout,
+                  bool printEdgeLabels = true) const;
 
-  void printInternalPTGAsDot(const std::string &filename);
+  void printInternalPTGAsDot(std::ostream &OS = std::cout) const;
 
-  json getAsJson() override;
+  using LLVMBasedCFG::getAsJson; // tell the compiler we wish to have both
+                                 // prints
+  nlohmann::json getAsJson() const override;
+
+  void printAsJson(std::ostream &OS = std::cout) const;
 
   unsigned getNumOfVertices();
 
   unsigned getNumOfEdges();
 
-  void exportPATBCJSON();
+  const LLVMPointsToGraph &getWholeModulePTG() const;
 
-  PointsToGraph &getWholeModulePTG();
-
-  std::vector<std::string> getDependencyOrderedFunctions();
+  std::vector<const llvm::Function *> getDependencyOrderedFunctions();
 };
 
 } // namespace psr

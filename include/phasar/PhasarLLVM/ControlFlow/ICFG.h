@@ -17,47 +17,62 @@
 #ifndef PHASAR_PHASARLLVM_CONTROLFLOW_ICFG_H_
 #define PHASAR_PHASARLLVM_CONTROLFLOW_ICFG_H_
 
-#include <iosfwd>
+#include <iostream>
 #include <map>
 #include <set>
 #include <string>
 
-#include <json.hpp>
-#include <wise_enum.h>
+#include "nlohmann/json.hpp"
 
-#include <phasar/PhasarLLVM/ControlFlow/CFG.h>
+#include "phasar/PhasarLLVM/ControlFlow/CFG.h"
 
 namespace psr {
 
-WISE_ENUM_CLASS(CallGraphAnalysisType, CHA, RTA, DTA, OTF)
+enum class CallGraphAnalysisType {
+#define ANALYSIS_SETUP_CALLGRAPH_TYPE(NAME, CMDFLAG, TYPE) TYPE,
+#include "phasar/PhasarLLVM/Utils/AnalysisSetups.def"
+  Invalid
+};
+
+std::string toString(const CallGraphAnalysisType &CGA);
+
+CallGraphAnalysisType toCallGraphAnalysisType(const std::string &S);
 
 std::ostream &operator<<(std::ostream &os, const CallGraphAnalysisType &CGA);
 
-using json = nlohmann::json;
-
-template <typename N, typename M> class ICFG : public virtual CFG<N, M> {
+template <typename N, typename F> class ICFG : public virtual CFG<N, F> {
 public:
   ~ICFG() override = default;
 
-  virtual bool isCallStmt(N stmt) = 0;
+  virtual std::set<F> getAllFunctions() const = 0;
 
-  virtual M getMethod(const std::string &fun) = 0;
+  virtual F getFunction(const std::string &Fun) const = 0;
 
-  virtual std::set<N> allNonCallStartNodes() = 0;
+  virtual bool isCallStmt(N Stmt) const = 0;
 
-  virtual std::set<M> getCalleesOfCallAt(N stmt) = 0;
+  virtual bool isIndirectFunctionCall(N Stmt) const = 0;
 
-  virtual std::set<N> getCallersOf(M fun) = 0;
+  virtual bool isVirtualFunctionCall(N Stmt) const = 0;
 
-  virtual std::set<N> getCallsFromWithin(M fun) = 0;
+  virtual std::set<N> allNonCallStartNodes() const = 0;
 
-  virtual std::set<N> getStartPointsOf(M fun) = 0;
+  virtual std::set<F> getCalleesOfCallAt(N Stmt) const = 0;
 
-  virtual std::set<N> getExitPointsOf(M fun) = 0;
+  virtual std::set<N> getCallersOf(F Fun) const = 0;
 
-  virtual std::set<N> getReturnSitesOfCallAt(N stmt) = 0;
+  virtual std::set<N> getCallsFromWithin(F Fun) const = 0;
 
-  virtual json getAsJson() = 0;
+  virtual std::set<N> getStartPointsOf(F Fun) const = 0;
+
+  virtual std::set<N> getExitPointsOf(F Fun) const = 0;
+
+  virtual std::set<N> getReturnSitesOfCallAt(N Stmt) const = 0;
+
+  using CFG<N, F>::print; // tell the compiler we wish to have both prints
+  virtual void print(std::ostream &OS = std::cout) const = 0;
+
+  using CFG<N, F>::getAsJson; // tell the compiler we wish to have both prints
+  virtual nlohmann::json getAsJson() const = 0;
 };
 
 } // namespace psr

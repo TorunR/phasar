@@ -21,8 +21,8 @@
 #include <string>
 #include <vector>
 
-#include <phasar/PhasarLLVM/ControlFlow/CFG.h>
-#include <phasar/PhasarLLVM/ControlFlow/LLVMBasedCFG.h>
+#include "phasar/PhasarLLVM/ControlFlow/CFG.h"
+#include "phasar/PhasarLLVM/ControlFlow/LLVMBasedCFG.h"
 
 namespace llvm {
 class Function;
@@ -41,37 +41,42 @@ public:
 
   virtual ~LLVMBasedBackwardCFG() = default;
 
-  const llvm::Function *getMethodOf(const llvm::Instruction *stmt) override;
+  const llvm::Function *
+  getFunctionOf(const llvm::Instruction *Stmt) const override;
 
   std::vector<const llvm::Instruction *>
-  getPredsOf(const llvm::Instruction *stmt) override;
+  getPredsOf(const llvm::Instruction *Stmt) const override;
 
   std::vector<const llvm::Instruction *>
-  getSuccsOf(const llvm::Instruction *stmt) override;
+  getSuccsOf(const llvm::Instruction *Stmt) const override;
 
   std::vector<std::pair<const llvm::Instruction *, const llvm::Instruction *>>
-  getAllControlFlowEdges(const llvm::Function *fun) override;
+  getAllControlFlowEdges(const llvm::Function *Fun) const override;
 
   std::vector<const llvm::Instruction *>
-  getAllInstructionsOf(const llvm::Function *fun) override;
+  getAllInstructionsOf(const llvm::Function *Fun) const override;
 
-  bool isExitStmt(const llvm::Instruction *stmt) override;
+  bool isExitStmt(const llvm::Instruction *Stmt) const override;
 
-  bool isStartPoint(const llvm::Instruction *stmt) override;
+  bool isStartPoint(const llvm::Instruction *Stmt) const override;
 
-  bool isFieldLoad(const llvm::Instruction *stmt) override;
+  bool isFieldLoad(const llvm::Instruction *Stmt) const override;
 
-  bool isFieldStore(const llvm::Instruction *stmt) override;
+  bool isFieldStore(const llvm::Instruction *Stmt) const override;
 
-  bool isFallThroughSuccessor(const llvm::Instruction *stmt,
-                              const llvm::Instruction *succ) override;
+  bool isFallThroughSuccessor(const llvm::Instruction *Inst,
+                              const llvm::Instruction *succ) const override;
 
-  bool isBranchTarget(const llvm::Instruction *stmt,
-                      const llvm::Instruction *succ) override;
+  bool isBranchTarget(const llvm::Instruction *Stmt,
+                      const llvm::Instruction *succ) const override;
 
-  std::string getMethodName(const llvm::Function *fun) override;
+  std::string getFunctionName(const llvm::Function *Fun) const override;
 
-  std::string getStatementId(const llvm::Instruction *stmt) override;
+  std::string getStatementId(const llvm::Instruction *Stmt) const override;
+
+  void print(const llvm::Function *Fun, std::ostream &OS) const override;
+
+  nlohmann::json getAsJson(const llvm::Function *Fun) const override;
 };
 } // namespace psr
 

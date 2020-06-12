@@ -1,31 +1,22 @@
-#include <cxxabi.h>
 #include <iostream>
-#include <llvm/IR/CallSite.h>
-#include <llvm/IR/Constants.h>
-#include <llvm/IR/DebugLoc.h>
-#include <llvm/IR/Function.h>
-#include <llvm/IR/Instruction.h>
-#include <llvm/IR/Instructions.h>
-#include <llvm/IR/IntrinsicInst.h>
-#include <llvm/IR/LLVMContext.h>
-#include <llvm/IR/Module.h>
-#include <llvm/IR/Verifier.h>
-#include <llvm/IRReader/IRReader.h>
-#include <llvm/Support/SMLoc.h>
-#include <llvm/Support/SourceMgr.h>
-#include <llvm/Support/raw_ostream.h>
 #include <memory>
 #include <string>
 
-std::string cxx_demangle(const std::string &mangled_name) {
-  int status = 0;
-  char *demangled =
-      abi::__cxa_demangle(mangled_name.c_str(), NULL, NULL, &status);
-  std::string result((status == 0 && demangled != NULL) ? demangled
-                                                        : mangled_name);
-  free(demangled);
-  return result;
-}
+#include "llvm/IR/CallSite.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/DebugLoc.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/Instruction.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/Module.h"
+#include "llvm/IR/Verifier.h"
+#include "llvm/IRReader/IRReader.h"
+#include "llvm/Support/ManagedStatic.h"
+#include "llvm/Support/SMLoc.h"
+#include "llvm/Support/SourceMgr.h"
+#include "llvm/Support/raw_ostream.h"
 
 int main(int argc, char **argv) {
   if (argc != 2) {
@@ -38,7 +29,8 @@ int main(int argc, char **argv) {
   std::unique_ptr<llvm::Module> M = llvm::parseIRFile(argv[1], Diag, *C);
   // check if the module is alright
   bool broken_debug_info = false;
-  if (M.get() == nullptr || llvm::verifyModule(*M, &llvm::errs(), &broken_debug_info)) {
+  if (M.get() == nullptr ||
+      llvm::verifyModule(*M, &llvm::errs(), &broken_debug_info)) {
     llvm::errs() << "error: module not valid\n";
     return 1;
   }

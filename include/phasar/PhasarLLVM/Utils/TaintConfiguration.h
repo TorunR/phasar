@@ -17,22 +17,24 @@
 #ifndef PHASAR_PHASARLLVM_UTILS_TAINTCONFIGURATION_H
 #define PHASAR_PHASARLLVM_UTILS_TAINTCONFIGURATION_H
 
-#include <boost/filesystem.hpp>
 #include <cassert>
 #include <fstream>
 #include <initializer_list>
 #include <iomanip>
 #include <iostream>
-#include <json.hpp>
 #include <map>
 #include <set>
 #include <string>
 #include <variant>
 #include <vector>
 
+#include "boost/filesystem.hpp"
+
 #include "llvm/Support/ErrorHandling.h"
 
-#include <phasar/Config/Configuration.h>
+#include "nlohmann/json.hpp"
+
+#include "phasar/Config/Configuration.h"
 
 namespace llvm {
 class Instruction;
@@ -363,10 +365,10 @@ public:
   bool isSink(const llvm::Instruction *I) const {
     return SinkInstructions.count(I);
   }
-  SourceFunction getSource(const std::string &FunctionName) {
+  SourceFunction getSource(const std::string &FunctionName) const {
     return Sources.at(FunctionName);
   }
-  SinkFunction getSink(const std::string &FunctionName) {
+  SinkFunction getSink(const std::string &FunctionName) const {
     return Sinks.at(FunctionName);
   }
 

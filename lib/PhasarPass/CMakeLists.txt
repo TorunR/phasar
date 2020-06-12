@@ -9,6 +9,7 @@ set(PHASAR_LINK_LIBS
   phasar_passes
   phasar_phasarllvm_utils
   phasar_pointer
+  phasar_typehierarchy
   phasar_utils
 )
 
@@ -31,14 +32,12 @@ endif()
 
 # We specifically link internal phasar libs into phasar_pass so on that the
 # llvm user side only has to specify one library.
+
+find_package(Boost COMPONENTS log filesystem graph program_options REQUIRED)
 target_link_libraries(phasar_pass
   LINK_PUBLIC
   ${PHASAR_LINK_LIBS}
-  boost_filesystem
-  boost_graph
-  boost_log
-  boost_program_options
-  boost_system
+  ${Boost_LIBRARIES}
 )
 
 set_target_properties(phasar_pass

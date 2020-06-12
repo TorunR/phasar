@@ -17,9 +17,10 @@
 #ifndef PHASAR_UTILS_LLVMSHORTHANDS_H_
 #define PHASAR_UTILS_LLVMSHORTHANDS_H_
 
-#include <phasar/Utils/Macros.h>
 #include <string>
 #include <vector>
+
+#include "phasar/Utils/Utilities.h"
 
 namespace llvm {
 class Value;
@@ -76,6 +77,10 @@ bool isAllocaInstOrHeapAllocaFunction(const llvm::Value *V) noexcept;
 
 // TODO add description
 bool matchesSignature(const llvm::Function *F, const llvm::FunctionType *FType);
+
+// TODO add description
+bool matchesSignature(const llvm::FunctionType *FType1,
+                      const llvm::FunctionType *FType2);
 
 /**
  * @brief Returns a string representation of a LLVM Value.
@@ -151,7 +156,7 @@ const llvm::Argument *getNthFunctionArgument(const llvm::Function *F,
  * @return LLVM Instruction or nullptr, if instNo invalid.
  */
 const llvm::Instruction *getNthInstruction(const llvm::Function *F,
-                                           unsigned instNo);
+                                           unsigned Idx);
 
 /**
  * The Termination Instruction count starts with one (not zero, as in Function
@@ -191,7 +196,7 @@ const llvm::Module *getModuleFromVal(const llvm::Value *V);
  * @param V LLVM Value.
  * @return Module name or empty string.
  */
-const std::string getModuleNameFromVal(const llvm::Value *V);
+std::string getModuleNameFromVal(const llvm::Value *V);
 
 /**
  * @brief Computes a hash value for a given LLVM Module.

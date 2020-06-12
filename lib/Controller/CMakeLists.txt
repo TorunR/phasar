@@ -6,9 +6,11 @@ set(PHASAR_LINK_LIBS
   phasar_plugins
   phasar_db
   phasar_pointer
+  phasar_typehierarchy
   phasar_controlflow
   phasar_phasarllvm_utils
   phasar_utils
+  phasar_analysis_strategy
 )
 
 set(LLVM_LINK_COMPONENTS
@@ -28,10 +30,11 @@ else()
   )
 endif()
 
+find_package(Boost COMPONENTS log REQUIRED)
 target_link_libraries(phasar_controller
   LINK_PUBLIC
   curl
-  boost_log
+  ${Boost_LIBRARIES}
 )
 
 set_target_properties(phasar_controller

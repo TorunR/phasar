@@ -19,25 +19,28 @@
 #include <set>
 #include <tuple>
 
-#include <llvm/IR/Function.h>
-#include <llvm/IR/Instruction.h>
-#include <llvm/IR/Instructions.h>
+#include "llvm/IR/Function.h"
+#include "llvm/IR/Instruction.h"
+#include "llvm/IR/Instructions.h"
 
 #include <llvm/Support/Debug.h>
-#include <phasar/Config/Configuration.h>
-#include <phasar/PhasarLLVM/ControlFlow/LLVMBasedCFG.h>
+#include "phasar/Config/Configuration.h"
+#include "phasar/PhasarLLVM/ControlFlow/LLVMBasedCFG.h"
+#include "phasar/Utils/LLVMShorthands.h"
+
 
 using namespace std;
 using namespace psr;
 
 namespace psr {
 
-const llvm::Function *LLVMBasedCFG::getMethodOf(const llvm::Instruction *stmt) {
-  return stmt->getFunction();
+const llvm::Function *
+LLVMBasedCFG::getFunctionOf(const llvm::Instruction *Stmt) const {
+  return Stmt->getFunction();
 }
 
 vector<const llvm::Instruction *>
-LLVMBasedCFG::getPredsOf(const llvm::Instruction *I) {
+LLVMBasedCFG::getPredsOf(const llvm::Instruction *I) const {
   vector<const llvm::Instruction *> Preds;
   if (I->getPrevNode()) {
     Preds.push_back(I->getPrevNode());
@@ -47,10 +50,10 @@ LLVMBasedCFG::getPredsOf(const llvm::Instruction *I) {
    * lead to our instruction in question!
    */
   if (Preds.empty()) {
-    for (auto &BB : *I->getFunction()) {
+    for (const auto &BB : *I->getFunction()) {
       if (const llvm::Instruction *T = BB.getTerminator()) {
-        for (unsigned i = 0; i < T->getNumSuccessors(); ++i) {
-          if (&*T->getSuccessor(i)->begin() == I) {
+        for (unsigned Idx = 0; Idx < T->getNumSuccessors(); ++Idx) {
+          if (&*T->getSuccessor(Idx)->begin() == I) {
             Preds.push_back(T);
           }
         }
@@ -61,27 +64,27 @@ LLVMBasedCFG::getPredsOf(const llvm::Instruction *I) {
 }
 
 vector<const llvm::Instruction *>
-LLVMBasedCFG::getSuccsOf(const llvm::Instruction *I) {
+LLVMBasedCFG::getSuccsOf(const llvm::Instruction *I) const {
   vector<const llvm::Instruction *> Successors;
   if (I->getNextNode()) {
     Successors.push_back(I->getNextNode());
   }
   if (I->isTerminator()) {
-    for (unsigned i = 0; i < I->getNumSuccessors(); ++i) {
-      Successors.push_back(&*I->getSuccessor(i)->begin());
+    for (unsigned Idx = 0; Idx < I->getNumSuccessors(); ++Idx) {
+      Successors.push_back(&*I->getSuccessor(Idx)->begin());
     }
   }
   return Successors;
 }
 
 vector<pair<const llvm::Instruction *, const llvm::Instruction *>>
-LLVMBasedCFG::getAllControlFlowEdges(const llvm::Function *fun) {
+LLVMBasedCFG::getAllControlFlowEdges(const llvm::Function *Fun) const {
   vector<pair<const llvm::Instruction *, const llvm::Instruction *>> Edges;
-  for (auto &BB : *fun) {
-    for (auto &I : BB) {
+  for (const auto &BB : *Fun) {
+    for (const auto &I : BB) {
       auto Successors = getSuccsOf(&I);
-      for (auto Successor : Successors) {
-        Edges.push_back(make_pair(&I, Successor));
+      for (const auto *Successor : Successors) {
+        Edges.emplace_back(&I, Successor);
       }
     }
   }
@@ -89,27 +92,27 @@ LLVMBasedCFG::getAllControlFlowEdges(const llvm::Function *fun) {
 }
 
 vector<const llvm::Instruction *>
-LLVMBasedCFG::getAllInstructionsOf(const llvm::Function *fun) {
+LLVMBasedCFG::getAllInstructionsOf(const llvm::Function *Fun) const {
   vector<const llvm::Instruction *> Instructions;
-  for (auto &BB : *fun) {
-    for (auto &I : BB) {
+  for (const auto &BB : *Fun) {
+    for (const auto &I : BB) {
       Instructions.push_back(&I);
     }
   }
   return Instructions;
 }
 
-bool LLVMBasedCFG::isExitStmt(const llvm::Instruction *stmt) {
-  return llvm::isa<llvm::ReturnInst>(stmt);
+bool LLVMBasedCFG::isExitStmt(const llvm::Instruction *Stmt) const {
+  return llvm::isa<llvm::ReturnInst>(Stmt);
 }
 
-bool LLVMBasedCFG::isStartPoint(const llvm::Instruction *stmt) {
-  return (stmt == &stmt->getFunction()->front().front());
+bool LLVMBasedCFG::isStartPoint(const llvm::Instruction *Stmt) const {
+  return (Stmt == &Stmt->getFunction()->front().front());
 }
 
-bool LLVMBasedCFG::isFieldLoad(const llvm::Instruction *stmt) {
-  if (auto Load = llvm::dyn_cast<llvm::LoadInst>(stmt)) {
-    if (auto GEP = llvm::dyn_cast<llvm::GetElementPtrInst>(
+bool LLVMBasedCFG::isFieldLoad(const llvm::Instruction *Stmt) const {
+  if (const auto *Load = llvm::dyn_cast<llvm::LoadInst>(Stmt)) {
+    if (const auto *GEP = llvm::dyn_cast<llvm::GetElementPtrInst>(
             Load->getPointerOperand())) {
       return true;
     }
@@ -117,9 +120,9 @@ bool LLVMBasedCFG::isFieldLoad(const llvm::Instruction *stmt) {
   return false;
 }
 
-bool LLVMBasedCFG::isFieldStore(const llvm::Instruction *stmt) {
-  if (auto Store = llvm::dyn_cast<llvm::StoreInst>(stmt)) {
-    if (auto GEP = llvm::dyn_cast<llvm::GetElementPtrInst>(
+bool LLVMBasedCFG::isFieldStore(const llvm::Instruction *Stmt) const {
+  if (const auto *Store = llvm::dyn_cast<llvm::StoreInst>(Stmt)) {
+    if (const auto *GEP = llvm::dyn_cast<llvm::GetElementPtrInst>(
             Store->getPointerOperand())) {
       return true;
     }
@@ -127,24 +130,24 @@ bool LLVMBasedCFG::isFieldStore(const llvm::Instruction *stmt) {
   return false;
 }
 
-bool LLVMBasedCFG::isFallThroughSuccessor(const llvm::Instruction *stmt,
-                                          const llvm::Instruction *succ) {
+bool LLVMBasedCFG::isFallThroughSuccessor(const llvm::Instruction *Stmt,
+                                          const llvm::Instruction *Succ) const {
   // assert(false && "FallThrough not valid in LLVM IR");
-  if (const llvm::BranchInst *B = llvm::dyn_cast<llvm::BranchInst>(stmt)) {
+  if (const auto *B = llvm::dyn_cast<llvm::BranchInst>(Stmt)) {
     if (B->isConditional()) {
-      return &B->getSuccessor(1)->front() == succ;
+      return &B->getSuccessor(1)->front() == Succ;
     } else {
-      return &B->getSuccessor(0)->front() == succ;
+      return &B->getSuccessor(0)->front() == Succ;
     }
   }
   return false;
 }
 
-bool LLVMBasedCFG::isBranchTarget(const llvm::Instruction *stmt,
-                                  const llvm::Instruction *succ) {
-  if (stmt->isTerminator()) {
-    for (unsigned i = 0; i < stmt->getNumSuccessors(); ++i) {
-      if (&*stmt->getSuccessor(i)->begin() == succ) {
+bool LLVMBasedCFG::isBranchTarget(const llvm::Instruction *Stmt,
+                                  const llvm::Instruction *Succ) const {
+  if (Stmt->isTerminator()) {
+    for (unsigned I = 0; I < Stmt->getNumSuccessors(); ++I) {
+      if (&*Stmt->getSuccessor(I)->begin() == Succ) {
         return true;
       }
     }
@@ -152,16 +155,17 @@ bool LLVMBasedCFG::isBranchTarget(const llvm::Instruction *stmt,
   return false;
 }
 
-string LLVMBasedCFG::getStatementId(const llvm::Instruction *stmt) {
+string LLVMBasedCFG::getStatementId(const llvm::Instruction *Stmt) const {
   return llvm::cast<llvm::MDString>(
-             stmt->getMetadata(PhasarConfig::MetaDataKind())->getOperand(0))
+             Stmt->getMetadata(PhasarConfig::MetaDataKind())->getOperand(0))
       ->getString()
       .str();
 }
 
-string LLVMBasedCFG::getMethodName(const llvm::Function *fun) {
-  return fun->getName().str();
+string LLVMBasedCFG::getFunctionName(const llvm::Function *Fun) const {
+  return Fun->getName().str();
 }
+
 
 bool hasSingleExitNode(const llvm::Function &fun) {
   bool foundOne = false;
@@ -282,11 +286,14 @@ LLVMBasedCFG::getNonTerminationSensitiveControlDependence(
     fun.viewCFG();
 
     for (auto &bb : cds) {
-      llvm::dbgs() << bb.first << " " << bb.first->getValueName()->first()
+      bb.first->print(llvm::dbgs());
+      llvm::dbgs()  << " " << bb.first->getValueName()->first()
                    << "\n";
-      for (auto &bb2 : bb.second)
-        llvm::dbgs() << "\t" << bb2 << " " << bb2->getValueName()->first()
-                     << "\n";
+      for (auto &bb2 : bb.second) {
+        llvm::dbgs() << "\t";
+        bb2->print(llvm::dbgs());
+        llvm::dbgs() << " " << bb2->getValueName()->first() << "\n";
+      }
     }
 
     return cds;
@@ -404,11 +411,14 @@ LLVMBasedCFG::getNonTerminationInsensitiveControlDependence(
     //    fun.viewCFG();
 
     for (auto &bb : cds) {
-      llvm::dbgs() << bb.first << " " << bb.first->getValueName()->first()
-                   << "\n";
-      for (auto &bb2 : bb.second)
-        llvm::dbgs() << "\t" << bb2 << " " << bb2->getValueName()->first()
-                     << "\n";
+      bb.first->print(llvm::dbgs());
+      llvm::dbgs()  << " " << bb.first->getValueName()->first()
+                    << "\n";
+      for (auto &bb2 : bb.second) {
+        llvm::dbgs() << "\t";
+        bb2->print(llvm::dbgs());
+        llvm::dbgs() << " " << bb2->getValueName()->first() << "\n";
+      }
     }
     return cds;
   }
@@ -482,5 +492,14 @@ void getStrongOrderDependence() {}
 void getWeakOrderDependence() {}
 
 void getDataSensitiveOrderDependence() {}
+
+
+void LLVMBasedCFG::print(const llvm::Function *F, std::ostream &OS) const {
+  OS << llvmIRToString(F);
+}
+
+nlohmann::json LLVMBasedCFG::getAsJson(const llvm::Function *F) const {
+  return "";
+}
 
 } // namespace psr
