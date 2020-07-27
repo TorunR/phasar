@@ -207,6 +207,8 @@ unsigned int getColumnFromIR(const llvm::Value *V) {
 
 std::string getSrcCodeFromIR(const llvm::Value *V) {
   unsigned int LineNr = getLineFromIR(V);
+  unsigned int columnNr = getColumnFromIR(V);
+  //TODO
   if (LineNr > 0) {
     boost::filesystem::path Path(getFilePathFromIR(V));
     if (boost::filesystem::exists(Path) &&
@@ -219,8 +221,21 @@ std::string getSrcCodeFromIR(const llvm::Value *V) {
           Ifs.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
         }
         std::getline(Ifs, SrcLine);
-        boost::algorithm::trim(SrcLine);
-        return SrcLine;
+        std::string res;
+        //TODO
+        unsigned int i =0;// columnNr -1;
+        while (true){
+          auto current_char = SrcLine[i];
+          res.push_back(current_char);
+          i++;
+          if (current_char == ';' || current_char == '}'|| SrcLine.length() == i) {
+            break;
+          }
+
+        }
+//        boost::algorithm::trim(SrcLine);
+
+        return res;
       }
     }
   }
