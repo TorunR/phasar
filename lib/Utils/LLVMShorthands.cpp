@@ -14,6 +14,10 @@
  *      Author: philipp
  */
 
+#include <cstdlib>
+
+#include "boost/algorithm/string/trim.hpp"
+
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
@@ -22,18 +26,14 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/ModuleSlotTracker.h"
 #include "llvm/IR/Value.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "boost/algorithm/string/trim.hpp"
-
-#include "phasar/PhasarLLVM/DataFlowSolver/IfdsIde/LLVMZeroValue.h"
-
 #include "phasar/Config/Configuration.h"
+#include "phasar/PhasarLLVM/DataFlowSolver/IfdsIde/LLVMZeroValue.h"
 #include "phasar/Utils/LLVMShorthands.h"
 #include "phasar/Utils/Utilities.h"
-
-#include <cstdlib>
 
 using namespace std;
 using namespace psr;
@@ -50,66 +50,6 @@ bool isFunctionPointer(const llvm::Value *V) noexcept {
            V->getType()->getPointerElementType()->isFunctionTy();
   }
   return false;
-}
-
-SpecialMemberFunctionTy specialMemberFunctionType(const std::string &S) {
-  // test if Codes for Constructors, Destructors or operator= are in string
-  static const std::map<std::string, SpecialMemberFunctionTy> Codes{
-      {"C1", SpecialMemberFunctionTy::CTOR},
-      {"C2", SpecialMemberFunctionTy::CTOR},
-      {"C3", SpecialMemberFunctionTy::CTOR},
-      {"D0", SpecialMemberFunctionTy::DTOR},
-      {"D1", SpecialMemberFunctionTy::DTOR},
-      {"D2", SpecialMemberFunctionTy::DTOR},
-      {"aSERKS_", SpecialMemberFunctionTy::CPASSIGNOP},
-      {"aSEOS_", SpecialMemberFunctionTy::MVASSIGNOP}};
-  std::vector<std::pair<std::size_t, SpecialMemberFunctionTy>> Found;
-  std::size_t Blacklist = 0;
-  auto It = Codes.begin();
-  while (It != Codes.end()) {
-    if (std::size_t Index = S.find(It->first, Blacklist)) {
-      if (Index != std::string::npos) {
-        Found.emplace_back(Index, It->second);
-        Blacklist = Index + 1;
-      } else {
-        ++It;
-        Blacklist = 0;
-      }
-    }
-  }
-  if (Found.empty()) {
-    return SpecialMemberFunctionTy::NONE;
-  }
-
-  // test if codes are in function name or type information
-  bool NoName = true;
-  for (auto Index : Found) {
-    for (auto C = S.begin(); C < S.begin() + Index.first; ++C) {
-      if (isdigit(*C)) {
-        short I = 0;
-        while (isdigit(*(C + I))) {
-          ++I;
-        }
-        std::string ST(C, C + I);
-        if (Index.first <= std::distance(S.begin(), C) + stoul(ST)) {
-          NoName = false;
-          break;
-        } else {
-          C = C + *C;
-        }
-      }
-    }
-    if (NoName) {
-      return Index.second;
-    } else {
-      NoName = true;
-    }
-  }
-  return SpecialMemberFunctionTy::NONE;
-}
-
-SpecialMemberFunctionTy specialMemberFunctionType(const llvm::StringRef &Sr) {
-  return specialMemberFunctionType(Sr.str());
 }
 
 bool isAllocaInstOrHeapAllocaFunction(const llvm::Value *V) noexcept {
@@ -164,14 +104,22 @@ bool matchesSignature(const llvm::FunctionType *FType1,
   return false;
 }
 
+static llvm::ModuleSlotTracker &getModuleSlotTrackerFor(const llvm::Value *V) {
+  static std::unordered_map<const llvm::Module *,
+                            std::unique_ptr<llvm::ModuleSlotTracker>>
+      ModuleToSlotTracker;
+  const auto *M = getModuleFromVal(V);
+  if (ModuleToSlotTracker.count(M) == 0) {
+    ModuleToSlotTracker.insert_or_assign(
+        M, std::make_unique<llvm::ModuleSlotTracker>(M));
+  }
+  return *ModuleToSlotTracker[M];
+}
+
 std::string llvmIRToString(const llvm::Value *V) {
-  // WARNING: Expensive function, cause is the V->print(RSO)
-  //         (20ms on a medium size code (phasar without debug)
-  //          80ms on a huge size code (clang without debug),
-  //          can be multiplied by times 3 to 5 if passes are enabled)
   std::string IRBuffer;
   llvm::raw_string_ostream RSO(IRBuffer);
-  V->print(RSO);
+  V->print(RSO, getModuleSlotTrackerFor(V));
   RSO << " | ID: " << getMetaDataID(V);
   RSO.flush();
   boost::trim_left(IRBuffer);
@@ -179,23 +127,13 @@ std::string llvmIRToString(const llvm::Value *V) {
 }
 
 std::string llvmIRToShortString(const llvm::Value *V) {
-  // WARNING: Expensive function, cause is the V->print(RSO)
-  //         (20ms on a medium size code (phasar without debug)
-  //          80ms on a huge size code (clang without debug),
-  //          can be multiplied by times 3 to 5 if passes are enabled)
   std::string IRBuffer;
   llvm::raw_string_ostream RSO(IRBuffer);
-  V->print(RSO);
-  boost::trim_left(IRBuffer);
+  V->printAsOperand(RSO, true, getModuleSlotTrackerFor(V));
+  RSO << " | ID: " << getMetaDataID(V);
   RSO.flush();
-  if (IRBuffer.find(", align") != std::string::npos) {
-    IRBuffer.erase(IRBuffer.find(", align"));
-  } else if (IRBuffer.find(", !") != std::string::npos) {
-    IRBuffer.erase(IRBuffer.find(", !"));
-  } else if (IRBuffer.size() > 30) {
-    IRBuffer.erase(30);
-  }
-  return IRBuffer + " | ID: " + getMetaDataID(V);
+  boost::trim_left(IRBuffer);
+  return IRBuffer;
 }
 
 std::vector<const llvm::Value *>
@@ -268,6 +206,10 @@ const llvm::Argument *getNthFunctionArgument(const llvm::Function *F,
     }
   }
   return nullptr;
+}
+
+const llvm::Instruction *getLastInstructionOf(const llvm::Function *F) {
+  return &F->back().back();
 }
 
 const llvm::Instruction *getNthInstruction(const llvm::Function *F,

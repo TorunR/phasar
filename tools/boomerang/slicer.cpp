@@ -24,6 +24,7 @@
 
 #include <chrono>
 #include <iostream>
+#include <phasar/PhasarLLVM/Pointer/LLVMPointsToGraph.h>
 #include <utility>
 #include <vector>
 #define __INTERPROCEDURAL__
@@ -266,24 +267,31 @@ private:
 };
 
 template <typename ICFG_T>
+struct SlicerAnalysisDomain : public AnalysisDomain {
+  using d_t = SlicerFact;
+  using n_t = const llvm::Instruction *;
+  using f_t = const llvm::Function *;
+  using t_t = const llvm::StructType *;
+  using v_t = const llvm::Value *;
+  using c_t = ICFG_T;
+  using i_t = ICFG_T;
+};
+
+template <typename ICFG_T>
 class IFDSSLicer
-    : public IFDSTabulationProblem<
-          const llvm::Instruction *, SlicerFact, const llvm::Function *,
-          const llvm::StructType *, const llvm::Value *, ICFG_T> {
+    : public IFDSTabulationProblem<SlicerAnalysisDomain<ICFG_T>> {
 public:
   IFDSSLicer(ICFG_T *icfg, const LLVMTypeHierarchy *th, const ProjectIRDB *irdb,
-             const LLVMPointsToInfo *PT,
+            LLVMPointsToInfo *PT,
              map<const Instruction *, set<SlicerFact>> sc,
              const std::vector<Term> *terms,
              const std::set<std::string> &entrypoints)
-      : IFDSTabulationProblem<const llvm::Instruction *, SlicerFact,
-                              const llvm::Function *, const llvm::StructType *,
-                              const llvm::Value *, ICFG_T>(irdb, th, icfg, PT),
+      : IFDSTabulationProblem<SlicerAnalysisDomain<ICFG_T>>(irdb, th, icfg, PT),
         terms(terms), slicingCriteria(std::move(sc)), entrypoints(entrypoints) {
   }
 
 private:
-  [[nodiscard]] SlicerFact createZeroValue() const override {
+  SlicerFact createZeroValue() const override {
     return SlicerFact();
   }
   shared_ptr<FlowFunction<SlicerFact>>
@@ -364,7 +372,7 @@ std::string createSlice(string target, set<string> entrypoints,
   LLVMBasedBackwardsICFG cg(DB, CallGraphAnalysisType::DTA, set(entrypoints),
                             &th);
   LLVMBasedICFG fcg(DB,CallGraphAnalysisType::DTA, set(entrypoints),&th);
-  LLVMPointsToInfo PT(DB);
+  LLVMPointsToGraph PT(DB);
   map<const Instruction *, set<SlicerFact>> sc;
   for (auto *module : DB.getAllModules()) {
     for (auto &function : module->functions()) {
@@ -602,7 +610,7 @@ int main(int argc, const char **argv) {
   LOG_IF_ENABLE(BOOST_LOG(lg::get()) << "STARTED")
   LLVMTypeHierarchy th(DB);
   LLVMBasedBackwardsICFG cg(DB, CallGraphAnalysisType::DTA, entrypoints, &th);
-  LLVMPointsToInfo PT(DB);
+  LLVMPointsToGraph PT(DB);
   createSlice(target, entrypoints, terms);
   std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
   std::cout << "Time difference = "
