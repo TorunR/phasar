@@ -91,13 +91,10 @@ ostream &operator<<(ostream &os, const Term &t) {
   return os;
 }
 
-
-
-
 class SlicerFact {
 public:
   SlicerFact() = default;
-  SlicerFact(const Location *l, const Value *i) : l(l), i(i) { }
+  SlicerFact(const Location *l, const Value *i) : l(l), i(i) {}
   bool operator<(const SlicerFact &rhs) const { return i < rhs.i; }
   bool operator==(const SlicerFact &rhs) const {
     return i == rhs.i && l == rhs.l;
@@ -140,18 +137,17 @@ public:
     facts.insert(source);
     // check logic for conditions
     if (!source.isZero()) {
-      const auto* user = dyn_cast<Instruction>(source.getInstruction());
+      const auto *user = dyn_cast<Instruction>(source.getInstruction());
       if (user) {
         llvm::dbgs() << "USER:\n";
         user->dump();
         llvm::dbgs() << curr->getFunction()->getName() << "\n";
         for (unsigned int i = 0; i < user->getNumOperands(); ++i) {
           const auto used = user->getOperandUse(i).get();
-          for (auto i=0; i < used->getNumUses();++i) {
+          for (auto unsigned i = 0; i < used->getNumUses(); ++i) {
             used->uses();
           }
-          const auto *use =
-              dyn_cast<Instruction>(user->getOperandUse(i).get());
+          const auto *use = dyn_cast<Instruction>(user->getOperandUse(i).get());
           if (use) {
             if (use == curr || use == source.getInstruction()) {
               llvm::dbgs() << "USE:\n";
@@ -185,13 +181,13 @@ public:
     facts.insert(source);
 #ifdef __INTERPROCEDURAL__
     if (!source.isZero()) {
-//      for (unsigned int i = 0; i < callStmt->getNumOperands(); ++i) {
-//        const auto op = callStmt->getOperand(i);
-//        if (source.getInstruction() == op) {
-//          facts.insert(SlicerFact(source.getLocation(),
-//                                  getNthFunctionArgument(destMthd, i)));
-//        }
-//      }
+      //      for (unsigned int i = 0; i < callStmt->getNumOperands(); ++i) {
+      //        const auto op = callStmt->getOperand(i);
+      //        if (source.getInstruction() == op) {
+      //          facts.insert(SlicerFact(source.getLocation(),
+      //                                  getNthFunctionArgument(destMthd, i)));
+      //        }
+      //      }
       auto targets = ICF->getStartPointsOf(destMthd);
       for (auto target : targets) {
         llvm::dbgs() << "TARGET: \t";
@@ -266,8 +262,7 @@ private:
   set<const Function *> callees;
 };
 
-template <typename ICFG_T>
-struct SlicerAnalysisDomain : public AnalysisDomain {
+template <typename ICFG_T> struct SlicerAnalysisDomain : public AnalysisDomain {
   using d_t = SlicerFact;
   using n_t = const llvm::Instruction *;
   using f_t = const llvm::Function *;
@@ -278,12 +273,10 @@ struct SlicerAnalysisDomain : public AnalysisDomain {
 };
 
 template <typename ICFG_T>
-class IFDSSLicer
-    : public IFDSTabulationProblem<SlicerAnalysisDomain<ICFG_T>> {
+class IFDSSLicer : public IFDSTabulationProblem<SlicerAnalysisDomain<ICFG_T>> {
 public:
   IFDSSLicer(ICFG_T *icfg, const LLVMTypeHierarchy *th, const ProjectIRDB *irdb,
-            LLVMPointsToInfo *PT,
-             map<const Instruction *, set<SlicerFact>> sc,
+             LLVMPointsToInfo *PT, map<const Instruction *, set<SlicerFact>> sc,
              const std::vector<Term> *terms,
              const std::set<std::string> &entrypoints)
       : IFDSTabulationProblem<SlicerAnalysisDomain<ICFG_T>>(irdb, th, icfg, PT),
@@ -291,9 +284,7 @@ public:
   }
 
 private:
-  SlicerFact createZeroValue() const override {
-    return SlicerFact();
-  }
+  SlicerFact createZeroValue() const override { return SlicerFact(); }
   shared_ptr<FlowFunction<SlicerFact>>
   getNormalFlowFunction(const Instruction *curr,
                         const Instruction *succ) override {
@@ -302,14 +293,15 @@ private:
   shared_ptr<FlowFunction<SlicerFact>>
   getCallFlowFunction(const Instruction *callStmt,
                       const Function *destMthd) override {
-    return make_shared<CallFlowFunction<ICFG_T>>(callStmt, destMthd, this->getICFG());
+    return make_shared<CallFlowFunction<ICFG_T>>(callStmt, destMthd,
+                                                 this->getICFG());
   }
   shared_ptr<FlowFunction<SlicerFact>>
   getRetFlowFunction(const Instruction *callSite, const Function *calleeMthd,
                      const Instruction *exitStmt,
                      const Instruction *retSite) override {
     return make_shared<RetFlowFunction<ICFG_T>>(callSite, calleeMthd, exitStmt,
-                                        retSite);
+                                                retSite);
   }
   shared_ptr<FlowFunction<SlicerFact>>
   getCallToRetFlowFunction(const Instruction *callSite,
@@ -322,7 +314,7 @@ private:
       const Instruction *i;
       if (std::is_same<ICFG_T, LLVMBasedBackwardsICFG>::value) {
         i = &this->ICF->getFunction(entrypoint)->back().back();
-      } else if (std::is_same<ICFG_T, LLVMBasedICFG>::value){
+      } else if (std::is_same<ICFG_T, LLVMBasedICFG>::value) {
         i = &this->ICF->getFunction(entrypoint)->front().front();
       } else {
         assert(false && "Only defined for LLVMBASED ICFGs");
@@ -371,7 +363,7 @@ std::string createSlice(string target, set<string> entrypoints,
   LLVMTypeHierarchy th(DB);
   LLVMBasedBackwardsICFG cg(DB, CallGraphAnalysisType::DTA, set(entrypoints),
                             &th);
-  LLVMBasedICFG fcg(DB,CallGraphAnalysisType::DTA, set(entrypoints),&th);
+  LLVMBasedICFG fcg(DB, CallGraphAnalysisType::DTA, set(entrypoints), &th);
   LLVMPointsToGraph PT(DB);
   map<const Instruction *, set<SlicerFact>> sc;
   for (auto *module : DB.getAllModules()) {
@@ -435,9 +427,9 @@ std::string createSlice(string target, set<string> entrypoints,
   IFDSSLicer<LLVMBasedBackwardsICFG> slicer(&cg, &th, &DB, &PT, sc, &terms,
                                             entrypoints);
   IFDSSLicer<LLVMBasedICFG> slicer2(&fcg, &th, &DB, &PT, sc, &terms,
-                                            entrypoints);
+                                    entrypoints);
   IFDSSolver test(slicer);
-//    IFDSSolver test(slicer2);
+  //    IFDSSolver test(slicer2);
   test.solve();
   ofstream out;
   out.open("out/graph.dot");
@@ -457,7 +449,7 @@ std::string createSlice(string target, set<string> entrypoints,
   map<const Function *, std::string> textSlices;
   for (const auto module : DB.getAllModules()) {
     for (auto &function : module->functions()) {
-      llvm::dbgs() <<"\n\n\n" << function.getName() << "\n\n\n";
+      llvm::dbgs() << "\n\n\n" << function.getName() << "\n\n\n";
       bool isUsed = false;
       for (auto &bb : function) {
         for (const auto &i : bb) {
@@ -467,7 +459,7 @@ std::string createSlice(string target, set<string> entrypoints,
           }
           llvm::dbgs() << "INS: " << llvmIRToString(&i) << "\n";
           llvm::dbgs() << "SRC: " << psr::getSrcCodeFromIR(&i) << "\n"
-               << res.size() << "\n";
+                       << res.size() << "\n";
           for (auto fact : res) {
             if (!fact.isZero()) {
               auto extractedInstruction = fact.getInstruction();
@@ -477,41 +469,46 @@ std::string createSlice(string target, set<string> entrypoints,
                    << psr::getSrcCodeFromIR(&i) << "\n"
                    << "\n";
               if (extractedInstruction == &i) {
-              slice.insert(
-                  std::make_tuple(psr::getSrcCodeFromIR(extractedInstruction),
-                                  *fact.getLocation(), extractedInstruction));
-              slices[&function].insert(
-                  std::make_tuple(psr::getSrcCodeFromIR(extractedInstruction),
-                                  *fact.getLocation(), extractedInstruction));
-              const auto ins = dyn_cast<Instruction>(fact.getInstruction());
-              if (ins) {
-                const auto *blockExit = ins->getParent()->getTerminator();
-                const auto instStr = psr::llvmIRToString(blockExit);
-                const auto exitSrc = psr::getSrcCodeFromIR(blockExit);
-                if (auto *dl = blockExit->getDebugLoc().get()) {
-                  cout << "ADDING " << llvmIRToString(blockExit) << " "
-                       << exitSrc << "\n";
-                  slice.insert(std::make_tuple(
-                      exitSrc, *createLocation(dl->getLine(), dl->getColumn()),
-                      blockExit));
-                  slices[&function].insert(std::make_tuple(
-                      exitSrc, *createLocation(dl->getLine(), dl->getColumn()),
-                      blockExit));
-                } else {
-                  cerr << "DID NOT FIND LOCATION" << "\n";
-                  slice.insert(std::make_tuple(exitSrc, *createLocation(0, 0),
-                                               blockExit));
-                  slices[&function].insert(std::make_tuple(
-                      exitSrc, *createLocation(0, 0), blockExit));
-                }
+                slice.insert(
+                    std::make_tuple(psr::getSrcCodeFromIR(extractedInstruction),
+                                    *fact.getLocation(), extractedInstruction));
+                slices[&function].insert(
+                    std::make_tuple(psr::getSrcCodeFromIR(extractedInstruction),
+                                    *fact.getLocation(), extractedInstruction));
+                const auto ins = dyn_cast<Instruction>(fact.getInstruction());
+                if (ins) {
+                  const auto *blockExit = ins->getParent()->getTerminator();
+                  const auto instStr = psr::llvmIRToString(blockExit);
+                  const auto exitSrc = psr::getSrcCodeFromIR(blockExit);
+                  if (auto *dl = blockExit->getDebugLoc().get()) {
+                    cout << "ADDING " << llvmIRToString(blockExit) << " "
+                         << exitSrc << "\n";
+                    slice.insert(std::make_tuple(
+                        exitSrc,
+                        *createLocation(dl->getLine(), dl->getColumn()),
+                        blockExit));
+                    slices[&function].insert(std::make_tuple(
+                        exitSrc,
+                        *createLocation(dl->getLine(), dl->getColumn()),
+                        blockExit));
+                  } else {
+                    cerr << "DID NOT FIND LOCATION"
+                         << "\n";
+                    slice.insert(std::make_tuple(exitSrc, *createLocation(0, 0),
+                                                 blockExit));
+                    slices[&function].insert(std::make_tuple(
+                        exitSrc, *createLocation(0, 0), blockExit));
+                  }
 
-                isUsed = true;
+                  isUsed = true;
+                }
+              } else {
+                cout << "DISCARDED PREVIOUS"
+                     << "\n";
               }
             } else {
-              cout << "DISCARDED PREVIOUS" << "\n";
-            }
-            } else {
-              llvm::dbgs() << "ZERO" << "\n";
+              llvm::dbgs() << "ZERO"
+                           << "\n";
             }
           }
           //          cout << "\n";
@@ -525,16 +522,18 @@ std::string createSlice(string target, set<string> entrypoints,
           for (auto &ins : bb) {
             if (auto *dl = ins.getDebugLoc().get()) {
               slice.insert(std::make_tuple(
-                  source, *createLocation(dl->getLine(), dl->getColumn()), entry));
+                  source, *createLocation(dl->getLine(), dl->getColumn()),
+                  entry));
               slices[&function].insert(std::make_tuple(
-                  source, *createLocation(dl->getLine(), dl->getColumn()), entry));
+                  source, *createLocation(dl->getLine(), dl->getColumn()),
+                  entry));
               goto added; // we found the first instruction with debug info
             }
           }
         }
-          slice.insert(std::make_tuple(source, *createLocation(0, 0), entry));
-          slices[&function].insert(
-              std::make_tuple(source, *createLocation(0, 0), entry));
+        slice.insert(std::make_tuple(source, *createLocation(0, 0), entry));
+        slices[&function].insert(
+            std::make_tuple(source, *createLocation(0, 0), entry));
       added:
         const auto exits = cg.getStartPointsOf(&function);
         for (const auto *exit : exits) {
@@ -547,31 +546,38 @@ std::string createSlice(string target, set<string> entrypoints,
                 *createLocation(dl->getLine(), dl->getColumn()), exit));
           } else {
             slice.insert(std::make_tuple(psr::getSrcCodeFromIR(exit),
-                                         *createLocation(INT_MAX, INT_MAX), exit));
-            slices[&function].insert(std::make_tuple(
-                psr::getSrcCodeFromIR(exit), *createLocation(INT_MAX, INT_MAX), exit));
-            llvm::dbgs() << "GOT NO DEBUG LOG" << "\n";
+                                         *createLocation(INT_MAX, INT_MAX),
+                                         exit));
+            slices[&function].insert(
+                std::make_tuple(psr::getSrcCodeFromIR(exit),
+                                *createLocation(INT_MAX, INT_MAX), exit));
+            llvm::dbgs() << "GOT NO DEBUG LOG"
+                         << "\n";
           }
         }
       }
     }
   }
-//  string prev;
-//  for (auto i : slice) {
-//    auto curr = std::get<0>(i);
-//    llvm::dbgs() << std::get<0>(i) << "\t\t\t\t\t\t\t\t\t\t\t\t" << std::get<1>(i)
-//         << "\t\t\t\t\t" << psr::llvmIRToString(std::get<2>(i)) << "\n";
-//    if (curr != prev) {
-//      textSlice.emplace_back(curr);
-//    }
-//    prev = curr;
-//  }
-//  llvm::dbgs() << "\n" << "\n" << "\n" << "\n";
-//
-//  for (auto &s : textSlice) {
-//    llvm::dbgs() << s << "\n";
-//  }
-  llvm::dbgs() << "\n" << "\n" << "\n" << "\n";
+  //  string prev;
+  //  for (auto i : slice) {
+  //    auto curr = std::get<0>(i);
+  //    llvm::dbgs() << std::get<0>(i) << "\t\t\t\t\t\t\t\t\t\t\t\t" <<
+  //    std::get<1>(i)
+  //         << "\t\t\t\t\t" << psr::llvmIRToString(std::get<2>(i)) << "\n";
+  //    if (curr != prev) {
+  //      textSlice.emplace_back(curr);
+  //    }
+  //    prev = curr;
+  //  }
+  //  llvm::dbgs() << "\n" << "\n" << "\n" << "\n";
+  //
+  //  for (auto &s : textSlice) {
+  //    llvm::dbgs() << s << "\n";
+  //  }
+  llvm::dbgs() << "\n"
+               << "\n"
+               << "\n"
+               << "\n";
   for (auto &p : slices) {
     llvm::dbgs() << p.first->getName() << "\t" << p.second.size() << "\n";
     for (auto &s : p.second) {
@@ -587,21 +593,21 @@ int main(int argc, const char **argv) {
   std::cout << "Current path is " << bofs::current_path() << '\n';
   //  const auto target = "./targets/w_defects.ll";
   //    const auto target = "./targets/main_linked.ll";
-//    const auto target = "./targets/ex.ll";
-//    const auto target =
-//    "/media/Volume/Arbeit/Arbeit/code/slicing-eval/memcached/memcached.ll";
-//  const auto target = "./targets/toSlice.ll";
-    const auto target = "./targets/min_ex.ll";
+  //    const auto target = "./targets/ex.ll";
+  //    const auto target =
+  //    "/media/Volume/Arbeit/Arbeit/code/slicing-eval/memcached/memcached.ll";
+  //  const auto target = "./targets/toSlice.ll";
+  const auto target = "./targets/min_ex.ll";
   //  const auto target =
   //  "/media/Volume/Arbeit/Arbeit/code/slicing-eval/git/git-linked.ll";
   const auto entryfunction = "main";
-//    const auto entryfunction = "parse_command";
+  //    const auto entryfunction = "parse_command";
   const set<std::string> entrypoints{entryfunction};
   //  initializeLogger(true);
-//    std::ifstream  in("targets/locations_json.json");
-//    std::ifstream in("targets/locations_memcached_command.json");
-//    std::ifstream in("targets/locations_memcached_single.json");
-//  std::ifstream in("targets/toSlice.json");
+  //    std::ifstream  in("targets/locations_json.json");
+  //    std::ifstream in("targets/locations_memcached_command.json");
+  //    std::ifstream in("targets/locations_memcached_single.json");
+  //  std::ifstream in("targets/toSlice.json");
   std::ifstream in("targets/min_ex.json");
   json j;
   in >> j;
