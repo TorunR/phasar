@@ -10,6 +10,7 @@
 #include <fstream>
 #include <iostream>
 #include <limits>
+#include <llvm/Support/Debug.h>
 
 #include "boost/algorithm/string/trim.hpp"
 #include "boost/filesystem.hpp"
@@ -88,12 +89,12 @@ llvm::DISubprogram *getDISubprogram(const llvm::Value *V) {
 
 llvm::DILocation *getDILocation(const llvm::Value *V) {
   // Arguments and Instruction such as AllocaInst
-  if (auto *DbgIntr = getDbgVarIntrinsic(V)) {
-    if (auto *MN = DbgIntr->getMetadata(llvm::LLVMContext::MD_dbg)) {
+  if (const auto *I = llvm::dyn_cast<llvm::Instruction>(V)) {
+    if (auto *MN = I->getMetadata(llvm::LLVMContext::MD_dbg)) {
       return llvm::dyn_cast<llvm::DILocation>(MN);
     }
-  } else if (const auto *I = llvm::dyn_cast<llvm::Instruction>(V)) {
-    if (auto *MN = I->getMetadata(llvm::LLVMContext::MD_dbg)) {
+  } else if (auto *DbgIntr = getDbgVarIntrinsic(V)) {
+    if (auto *MN = DbgIntr->getMetadata(llvm::LLVMContext::MD_dbg)) {
       return llvm::dyn_cast<llvm::DILocation>(MN);
     }
   }
@@ -208,7 +209,7 @@ unsigned int getColumnFromIR(const llvm::Value *V) {
 std::string getSrcCodeFromIR(const llvm::Value *V) {
   unsigned int LineNr = getLineFromIR(V);
   unsigned int columnNr = getColumnFromIR(V);
-  //TODO
+  // TODO
   if (LineNr > 0) {
     boost::filesystem::path Path(getFilePathFromIR(V));
     if (boost::filesystem::exists(Path) &&
@@ -222,19 +223,18 @@ std::string getSrcCodeFromIR(const llvm::Value *V) {
         }
         std::getline(Ifs, SrcLine);
         std::string res;
-        //TODO
-        unsigned int i =0;// columnNr -1;
-        while (true){
+        // TODO
+        unsigned int i = 0; // columnNr -1;
+        while (true) {
           auto current_char = SrcLine[i];
           res.push_back(current_char);
           i++;
-          if (current_char == ';' || current_char == '}'|| SrcLine.length() == i) {
+          if (current_char == ';' || current_char == '}' ||
+              SrcLine.length() == i) {
             break;
           }
-
         }
-//        boost::algorithm::trim(SrcLine);
-
+        //        boost::algorithm::trim(SrcLine);
         return res;
       }
     }
