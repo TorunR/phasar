@@ -1,0 +1,192 @@
+[
+  {
+    "term": "command",
+    "file": "memcached.h",
+    "locations": [
+      {
+        "line": 73,
+        "column": 27,
+        "meta": {
+          "Kind": "Comment"
+        }
+      },
+      {
+        "line": 187,
+        "column": 22,
+        "meta": {
+          "Kind": "Comment"
+        }
+      },
+      {
+        "line": 189,
+        "column": 22,
+        "meta": {
+          "Kind": "Comment"
+        }
+      },
+      {
+        "line": 190,
+        "column": 22,
+        "meta": {
+          "Kind": "Comment"
+        }
+      },
+      {
+        "line": 431,
+        "column": 10,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 431,
+        "column": 28,
+        "meta": {
+          "Kind": "Comment"
+        }
+      },
+      {
+        "line": 704,
+        "column": 5,
+        "meta": {
+          "Kind": "Comment"
+        }
+      },
+      {
+        "line": 730,
+        "column": 5,
+        "meta": {
+          "Kind": "Comment"
+        }
+      },
+      {
+        "line": 741,
+        "column": 16,
+        "meta": {
+          "Kind": "Comment"
+        }
+      },
+      {
+        "line": 746,
+        "column": 11,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      }
+    ]
+  },
+  {
+    "term": "command",
+    "file": "memcached.c",
+    "locations": [
+      {"line" : 82, "column" : 21, "meta" : {}},
+      {"line" : 83, "column" : 21, "meta" : {}},
+      {"line" : 283, "column" : 23, "meta" : {}},
+      {"line" : 602, "column" : 31, "meta" : {}},
+      {"line" : 684, "column" : 21, "meta" : {}},
+      {"line" : 690, "column" : 33, "meta" : {}},
+      {"line" : 693, "column" : 33, "meta" : {}},
+      {"line" : 699, "column" : 29, "meta" : {}},
+      {"line" : 702, "column" : 29, "meta" : {}},
+      {"line" : 1226, "column" : 28, "meta" : {}},
+      {"line" : 1491, "column" : 4, "meta" : {}},
+      {"line" : 2244, "column" : 25, "meta" : {}},
+      {"line" : 2547, "column" : 21, "meta" : {}},
+      {"line" : 2555, "column" : 21, "meta" : {}},
+      {"line" : 2559, "column" : 21, "meta" : {}},
+      {"line" : 2567, "column" : 24, "meta" : {}},
+      {"line" : 2570, "column" : 21, "meta" : {}},
+      {"line" : 2577, "column" : 25, "meta" : {}},
+      {"line" : 2580, "column" : 25, "meta" : {}},
+      {"line" : 2625, "column" : 64, "meta" : {}},
+      {"line" : 3333, "column" : 29, "meta" : {}},
+      {"line" : 4077, "column" : 65, "meta" : {}},
+      {"line" : 4091, "column" : 71, "meta" : {}},
+      {"line" : 4107, "column" : 62, "meta" : {}},
+      {"line" : 4123, "column" : 57, "meta" : {}},
+      {"line" : 4125, "column" : 53, "meta" : {}},
+      {"line" : 4173, "column" : 80, "meta" : {}},
+      {"line" : 5007, "column" : 42, "meta" : {}},
+      {"line" : 5035, "column" : 33, "meta" : {}},
+      {"line" : 5036, "column" : 34, "meta" : {}},
+      {"line" : 5090, "column" : 35, "meta" : {}},
+      {"line" : 5091, "column" : 31, "meta" : {}}
+    ]
+  },
+  {
+    "term": "cmd",
+    "file": "memcached.h",
+    "locations": [
+      {
+        "line": 187,
+        "column": 5,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 190,
+        "column": 5,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 691,
+        "column": 16,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 741,
+        "column": 11,
+        "meta": {}
+      }
+    ]
+  },
+  {
+    "term": "cmd",
+    "file": "memcached.c",
+    "locations": [
+      {"line" : 310, "column" : 28, "meta" : {}},
+      {"line" : 322, "column" : 21, "meta" : {}},
+      {"line" : 340, "column" : 38, "meta" : {}},
+      {"line" : 343, "column" : 41, "meta" : {}},
+      {"line" : 350, "column" : 29, "meta" : {}},
+      {"line" : 351, "column" : 33, "meta" : {}},
+      {"line" : 356, "column" : 74, "meta" : {}},
+      {"line" : 503, "column" : 33, "meta" : {}},
+      {"line" : 504, "column" : 34, "meta" : {}},
+      {"line" : 539, "column" : 25, "meta" : {}},
+      {"line" : 610, "column" : 62, "meta" : {}},
+      {"line" : 645, "column" : 8, "meta" : {}},
+      {"line" : 654, "column" : 13, "meta" : {}},
+      {"line" : 931, "column" : 50, "meta" : {}},
+      {"line" : 934, "column" : 52, "meta" : {}},
+      {"line" : 1202, "column" : 36, "meta" : {}},
+      {"line" : 1222, "column" : 32, "meta" : {}},
+      {"line" : 1361, "column" : 19, "meta" : {}},
+      {"line" : 1362, "column" : 8, "meta" : {}},
+      {"line" : 1371, "column" : 38, "meta" : {}},
+      {"line" : 1553, "column" : 60, "meta" : {}},
+      {"line" : 1661, "column" : 36, "meta" : {}},
+      {"line" : 1735, "column" : 18, "meta" : {}},
+      {"line" : 1736, "column" : 18, "meta" : {}},
+      {"line" : 1737, "column" : 18, "meta" : {}},
+      {"line" : 1738, "column" : 18, "meta" : {}},
+      {"line" : 1739, "column" : 18, "meta" : {}},
+      {"line" : 1765, "column" : 23, "meta" : {}},
+      {"line" : 2104, "column" : 53, "meta" : {}},
+      {"line" : 2105, "column" : 55, "meta" : {}},
+      {"line" : 3281, "column" : 49, "meta" : {}},
+      {"line" : 3320, "column" : 46, "meta" : {}},
+      {"line" : 3331, "column" : 25, "meta" : {}},
+      {"line" : 3345, "column" : 23, "meta" : {}},
+      {"line" : 3351, "column" : 23, "meta" : {}},
+      {"line" : 3468, "column" : 44, "meta" : {}},
+      {"line" : 3534, "column" : 48, "meta" : {}},
+      {"line" : 4394, "column" : 17, "meta" : {}}
+    ]
+  }
+]

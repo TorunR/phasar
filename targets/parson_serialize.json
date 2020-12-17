@@ -1,0 +1,173 @@
+[
+  {
+    "term": "serialize",
+    "file": "parson.c",
+    "locations": [
+      {
+        "line": 153,
+        "column": 20,
+        "meta": {}
+      },
+      {
+        "line": 154,
+        "column": 20,
+        "meta": {}
+      },
+      {
+        "line": 891,
+        "column": 17,
+        "meta": {}
+      },
+      {
+        "line": 915,
+        "column": 32,
+        "meta": {}
+      },
+      {
+        "line": 951,
+        "column": 32,
+        "meta": {}
+      },
+      {
+        "line": 964,
+        "column": 32,
+        "meta": {}
+      },
+      {
+        "line": 990,
+        "column": 28,
+        "meta": {}
+      },
+      {
+        "line": 1030,
+        "column": 17,
+        "meta": {}
+      },
+      {
+        "line": 1541,
+        "column": 20,
+        "meta": {}
+      },
+      {
+        "line": 1545,
+        "column": 18,
+        "meta": {}
+      },
+      {
+        "line": 1551,
+        "column": 20,
+        "meta": {}
+      },
+      {
+        "line": 1558,
+        "column": 18,
+        "meta": {}
+      },
+      {
+        "line": 1561,
+        "column": 11,
+        "meta": {}
+      },
+      {
+        "line": 1562,
+        "column": 9,
+        "meta": {}
+      },
+      {
+        "line": 1567,
+        "column": 19,
+        "meta": {}
+      },
+      {
+        "line": 1570,
+        "column": 15,
+        "meta": {}
+      },
+      {
+        "line": 1576,
+        "column": 15,
+        "meta": {}
+      },
+      {
+        "line": 1580,
+        "column": 13,
+        "meta": {}
+      },
+      {
+        "line": 1591,
+        "column": 33,
+        "meta": {}
+      },
+      {
+        "line": 1593,
+        "column": 19,
+        "meta": {}
+      },
+      {
+        "line": 1601,
+        "column": 20,
+        "meta": {}
+      },
+      {
+        "line": 1605,
+        "column": 18,
+        "meta": {}
+      },
+      {
+        "line": 1611,
+        "column": 20,
+        "meta": {}
+      },
+      {
+        "line": 1618,
+        "column": 18,
+        "meta": {}
+      },
+      {
+        "line": 1621,
+        "column": 11,
+        "meta": {}
+      },
+      {
+        "line": 1622,
+        "column": 9,
+        "meta": {}
+      },
+      {
+        "line": 1627,
+        "column": 19,
+        "meta": {}
+      },
+      {
+        "line": 1630,
+        "column": 15,
+        "meta": {}
+      },
+      {
+        "line": 1636,
+        "column": 15,
+        "meta": {}
+      },
+      {
+        "line": 1640,
+        "column": 13,
+        "meta": {}
+      },
+      {
+        "line": 1651,
+        "column": 33,
+        "meta": {}
+      },
+      {
+        "line": 1653,
+        "column": 19,
+        "meta": {}
+      },
+      {
+        "line": 1659,
+        "column": 16,
+        "meta": {}
+      }
+    ]
+  }
+]

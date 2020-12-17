@@ -1,17 +1,17 @@
 [
   {
     "term": "foo",
-    "file": "slicingEx.c",
+    "file": "min_ex.c",
     "locations": [
       {
-        "line": 71,
+        "line": 8,
         "column": 13,
         "meta": {
           "Kind": "Identifier"
         }
       },
       {
-        "line": 72,
+        "line": 9,
         "column": 13,
         "meta": {
           "Kind": "Identifier"
