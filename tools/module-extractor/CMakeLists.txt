@@ -1,16 +1,17 @@
 # Build a stand-alone executable
 if (PHASAR_IN_TREE)
-    add_phasar_executable(boomerang
-            boomerang.cpp
+    add_phasar_executable(slicer
+            tools/phasar/slicer.cpp
             )
 else ()
-    add_executable(boomerang
-            boomerang.cpp
+    add_executable(slicer
+            ../module-extractor/slicer.cpp
             )
 endif ()
 
 find_package(Boost COMPONENTS log filesystem program_options graph ${BOOST_THREAD} REQUIRED)
-target_link_libraries(boomerang
+
+target_link_libraries(slicer
         LINK_PUBLIC
         phasar_config
         phasar_controller
@@ -32,9 +33,11 @@ target_link_libraries(boomerang
         ${CMAKE_THREAD_LIBS_INIT}
         )
 
+
 if (USE_LLVM_FAT_LIB)
-    llvm_config(boomerang USE_SHARED ${LLVM_LINK_COMPONENTS})
+    llvm_config(slicer USE_SHARED ${LLVM_LINK_COMPONENTS})
 else ()
-    llvm_config(boomerang ${LLVM_LINK_COMPONENTS})
+    llvm_config(slicer ${LLVM_LINK_COMPONENTS})
 endif ()
+
 set(LLVM_LINK_COMPONENTS)

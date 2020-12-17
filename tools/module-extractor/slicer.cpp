@@ -1,277 +1,13 @@
-#include <boost/filesystem/operations.hpp>
-#include <nlohmann/json.hpp>
+#include "slicer.h"
 
-#include <llvm/ADT/StringRef.h>
-#include <llvm/Analysis/PostDominators.h>
-#include <llvm/IR/CFG.h>
-#include <llvm/IR/DebugInfoMetadata.h>
-#include <llvm/Support/Casting.h>
-#include <llvm/Support/Debug.h>
-#include <llvm/Support/raw_ostream.h>
-
-#include <phasar/DB/ProjectIRDB.h>
-#include <phasar/PhasarLLVM/ControlFlow/LLVMBasedBackwardICFG.h>
-#include <phasar/PhasarLLVM/ControlFlow/LLVMBasedICFG.h>
-#include <phasar/PhasarLLVM/DataFlowSolver/IfdsIde/IFDSTabulationProblem.h>
-#include <phasar/PhasarLLVM/DataFlowSolver/IfdsIde/Solver/IFDSSolver.h>
-#include <phasar/PhasarLLVM/Pointer/LLVMPointsToInfo.h>
-#include <phasar/PhasarLLVM/TypeHierarchy/LLVMTypeHierarchy.h>
-#include <phasar/Utils/LLVMIRToSrc.h>
-#include <phasar/Utils/Logger.h>
-
-#include <deque>
-#include <map>
-
-#include <chrono>
-#include <iostream>
-#include <phasar/PhasarLLVM/Pointer/LLVMPointsToGraph.h>
-#include <utility>
-#include <vector>
 #define __INTERPROCEDURAL__
-namespace bofs = boost::filesystem;
-using namespace llvm;
-using namespace std;
-using namespace psr;
-using json = nlohmann::json;
-struct Term;
 
-struct Location {
-  unsigned int line;
-  unsigned int column;
-  map<string, string> meta;
-  Location() {}
-  Location(unsigned int line, unsigned int column)
-      : line(line), column(column) {}
-};
-// TODO Memory Leak here
-Location *createLocation(unsigned int line, unsigned int column) {
-  return new Location(line, column);
-}
-
-bool operator<(const Location &l1, const Location &l2) {
-  return l1.line < l2.line || (l1.line == l2.line && l1.column < l2.column);
-}
 struct SliceComparator {
   template <typename T>
   bool operator()(const tuple<string, Location, T> &l,
                   const tuple<string, Location, T> &r) const {
     return std::get<1>(l) < std::get<1>(r) || std::get<0>(l) < std::get<0>(r);
   }
-};
-void to_json(json &j, const Location &l) {
-  j = json{{"line", l.line}, {"column", l.column}, {"meta", l.meta}};
-}
-void from_json(const json &j, Location &l) {
-  j.at("line").get_to(l.line);
-  j.at("column").get_to(l.column);
-  j.at("meta").get_to(l.meta);
-}
-ostream &operator<<(ostream &os, const Location &l) {
-  os << "(" << l.line << "," << l.column << ")";
-  return os;
-}
-
-raw_ostream &operator<<(raw_ostream &os, const Location &l) {
-  os << "(" << l.line << "," << l.column << ")";
-  return os;
-}
-
-struct Term {
-  std::string file;
-  std::string term;
-  vector<Location> locations;
-};
-void to_json(json &j, const Term &t) {
-  j = json{{"file", t.file}, {"term", t.term}, {"locations", t.locations}};
-}
-void from_json(const json &j, Term &t) {
-  j.at("file").get_to(t.file);
-  j.at("term").get_to(t.term);
-  j.at("locations").get_to(t.locations);
-}
-
-ostream &operator<<(ostream &os, const Term &t) {
-  os << '\'' << t.term << "' in " << t.file << " at [";
-  for (auto const &l : t.locations) {
-    os << l << ",";
-  }
-  os << "]";
-  return os;
-}
-
-class SlicerFact {
-public:
-  SlicerFact() = default;
-  SlicerFact(const Location *l, const Value *i) : l(l), i(i) {}
-  bool operator<(const SlicerFact &rhs) const { return i < rhs.i; }
-  bool operator==(const SlicerFact &rhs) const {
-    return i == rhs.i && l == rhs.l;
-  }
-
-  friend std::ostream &operator<<(std::ostream &os, const SlicerFact &rhs);
-  friend raw_ostream &operator<<(raw_ostream &os, const SlicerFact &rhs);
-  [[nodiscard]] bool isZero() const { return i == nullptr; }
-  const llvm::Value *getInstruction() { return i; }
-  const Location *getLocation() { return l; }
-
-private:
-  const Location *l = nullptr;
-  const Value *i = nullptr;
-};
-
-std::ostream &operator<<(std::ostream &os, const SlicerFact &rhs) {
-  std::string temp;
-  llvm::raw_string_ostream rso(temp);
-  if (!rhs.isZero()) {
-    rhs.i->print(rso, true);
-    os << temp << " " << *rhs.l;
-  } else {
-    os << "Zero";
-  }
-  return os;
-}
-
-raw_ostream &operator<<(raw_ostream &os, const SlicerFact &rhs) {
-  std::string temp;
-  llvm::raw_string_ostream rso(temp);
-  if (!rhs.isZero()) {
-    rhs.i->print(rso, true);
-    os << temp << " " << *rhs.l;
-  } else {
-    os << "Zero";
-  }
-  return os;
-}
-
-namespace std {
-template <> struct hash<SlicerFact> {
-  size_t operator()(const SlicerFact &x) const { return 0; }
-};
-} // namespace std
-
-class NormalFlowFunction : public FlowFunction<SlicerFact> {
-public:
-  NormalFlowFunction(const Instruction *curr, const Instruction *succ)
-      : curr(curr), succ(succ) {}
-
-  std::set<SlicerFact> computeTargets(SlicerFact source) override {
-    set<SlicerFact> facts;
-    facts.insert(source);
-    // check logic for conditions
-    if (!source.isZero()) {
-//            llvm::dbgs() << "===================\n";
-//            llvm::dbgs() << "succ: " <<*curr << "\n";
-//            llvm::dbgs() << "Source: "<< *source.getInstruction() << "\n";
-//            llvm::dbgs() << curr->getFunction()->getName() << "\n";
-
-      for (const auto &user : curr->users()) {
-//                llvm::dbgs() << "USE" << *user << "\n";
-        if (user == source.getInstruction()) {
-//                    llvm::dbgs() << "RELEVANT USE" << "\n";
-          facts.insert(SlicerFact(source.getLocation(), curr));
-
-        }
-      }
-    }
-    return facts;
-  }
-
-private:
-  const Instruction *curr;
-  const Instruction *succ;
-};
-template <typename ICFG_T>
-class CallFlowFunction : public FlowFunction<SlicerFact> {
-public:
-  CallFlowFunction(const Instruction *callStmt, const Function *destMthd,
-                   const ICFG_T *ICF)
-      : callStmt(callStmt), destMthd(destMthd), ICF(ICF) {}
-
-  std::set<SlicerFact> computeTargets(SlicerFact source) override {
-    set<SlicerFact> facts;
-//    facts.insert(source);
-#ifdef __INTERPROCEDURAL__
-    if (!source.isZero()) {
-      auto targets = ICF->getStartPointsOf(destMthd);
-      for (auto target : targets) {
-        facts.insert(SlicerFact(source.getLocation(), target));
-      }
-    }
-#endif
-    return facts;
-  }
-
-private:
-  const Instruction *callStmt;
-  const Function *destMthd;
-  const ICFG_T *ICF;
-};
-
-template <typename ICFG_T>
-class RetFlowFunction : public FlowFunction<SlicerFact> {
-public:
-  RetFlowFunction(const Instruction *callSite, const Function *calleeMthd,
-                  const Instruction *exitStmt, const Instruction *retSite)
-      : callSite(callSite), calleeMthd(calleeMthd), exitStmt(exitStmt),
-        retSite(retSite) {}
-  std::set<SlicerFact> computeTargets(SlicerFact source) override {
-    //    llvm::dbgs() << "\n";
-    //    callSite->dump();
-    //    calleeMthd->dump();
-    //    exitStmt->dump();
-    //    retSite->dump();
-    //    llvm::dbgs() << "\n";
-    set<SlicerFact> facts;
-//    facts.insert(source);
-#ifdef __INTERPROCEDURAL__
-//    for (unsigned int i = 0; i < callSite->getNumOperands(); ++i) {
-//      const auto op = callSite->getOperand(i);
-//      if (source.getInstruction() == op) {
-//        facts.insert(SlicerFact(source.getLocation(),
-//                                getNthFunctionArgument(calleeMthd, i)));
-//      }
-//    }
-//    if (!source.isZero()) {
-//      facts.insert(SlicerFact(source.getLocation(), exitStmt));
-//    }
-#endif
-    return facts;
-  }
-
-private:
-  const Instruction *callSite;
-  const Function *calleeMthd;
-  const Instruction *exitStmt;
-
-  const Instruction *retSite;
-};
-
-class CallToRetFlowFunction : public FlowFunction<SlicerFact> {
-public:
-  CallToRetFlowFunction(const Instruction *callSite, const Instruction *retSite,
-                        set<const Function *> callees)
-      : callSite(callSite), retSite(retSite), callees(std::move(callees)) {}
-
-  std::set<SlicerFact> computeTargets(SlicerFact source) override {
-    set<SlicerFact> facts;
-    facts.insert(source);
-    return facts;
-  }
-
-private:
-  const Instruction *callSite;
-  const Instruction *retSite;
-  set<const Function *> callees;
-};
-
-template <typename ICFG_T> struct SlicerAnalysisDomain : public AnalysisDomain {
-  using d_t = SlicerFact;
-  using n_t = const llvm::Instruction *;
-  using f_t = const llvm::Function *;
-  using t_t = const llvm::StructType *;
-  using v_t = const llvm::Value *;
-  using c_t = ICFG_T;
-  using i_t = ICFG_T;
 };
 
 template <typename ICFG_T>
@@ -359,9 +95,9 @@ private:
 };
 
 template <typename AnalysisDomainTy>
-void process_results(ProjectIRDB &DB,IFDSSolver<AnalysisDomainTy> &solver,LLVMBasedBackwardsICFG &cg) {
-  map<const Function *,
-      set<const llvm::Value *>> slice_instruction;
+void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
+                     LLVMBasedBackwardsICFG &cg) {
+  map<const Function *, set<const llvm::Value *>> slice_instruction;
   llvm::dbgs() << "SOLVING DONE\n";
   for (const auto module : DB.getAllModules()) {
     for (auto &function : module->functions()) {
@@ -398,14 +134,16 @@ void process_results(ProjectIRDB &DB,IFDSSolver<AnalysisDomainTy> &solver,LLVMBa
                 if (auto *dl = blockExit->getDebugLoc().get()) {
                   llvm::dbgs() << "ADDING " << llvmIRToString(blockExit) << " "
                                << exitSrc << "\n";
-//                  slices[&function].insert(std::make_tuple(
-//                      exitSrc, *createLocation(dl->getLine(), dl->getColumn()),
-//                      blockExit));
+                  //                  slices[&function].insert(std::make_tuple(
+                  //                      exitSrc,
+                  //                      *createLocation(dl->getLine(),
+                  //                      dl->getColumn()), blockExit));
                 } else {
                   cerr << "DID NOT FIND LOCATION"
                        << "\n";
-//                  slice.insert(std::make_tuple(exitSrc, *createLocation(0, 0),
-//                                               blockExit));
+                  //                  slice.insert(std::make_tuple(exitSrc,
+                  //                  *createLocation(0, 0),
+                  //                                               blockExit));
                 }
 
                 isUsed = true;
@@ -422,26 +160,28 @@ void process_results(ProjectIRDB &DB,IFDSSolver<AnalysisDomainTy> &solver,LLVMBa
         for (auto &bb : function) {
           for (auto &ins : bb) {
             if (auto *dl = ins.getDebugLoc().get()) {
-//              slice.insert(std::make_tuple(
-//                  source, *createLocation(dl->getLine(), dl->getColumn()),
-//                  entry));
+              //              slice.insert(std::make_tuple(
+              //                  source, *createLocation(dl->getLine(),
+              //                  dl->getColumn()), entry));
               goto added; // we found the first instruction with debug info
             }
           }
         }
-//        slices[&function].insert(
-//            std::make_tuple(source, *createLocation(0, 0), entry));
-        added:
+        //        slices[&function].insert(
+        //            std::make_tuple(source, *createLocation(0, 0), entry));
+      added:
         const auto exits = cg.getStartPointsOf(&function);
         for (const auto *exit : exits) {
           if (auto *dl = exit->getDebugLoc().get()) {
-//            slices[&function].insert(std::make_tuple(
-//                psr::getSrcCodeFromIR(exit),
-//                *createLocation(dl->getLine(), dl->getColumn()), exit));
+            //            slices[&function].insert(std::make_tuple(
+            //                psr::getSrcCodeFromIR(exit),
+            //                *createLocation(dl->getLine(), dl->getColumn()),
+            //                exit));
           } else {
-//            slices[&function].insert(
-//                std::make_tuple(psr::getSrcCodeFromIR(exit),
-//                                *createLocation(INT_MAX, INT_MAX), exit));
+            //            slices[&function].insert(
+            //                std::make_tuple(psr::getSrcCodeFromIR(exit),
+            //                                *createLocation(INT_MAX, INT_MAX),
+            //                                exit));
             llvm::dbgs() << "GOT NO DEBUG LOG"
                          << "\n";
           }
@@ -457,10 +197,9 @@ void process_results(ProjectIRDB &DB,IFDSSolver<AnalysisDomainTy> &solver,LLVMBa
   for (auto &p : slice_instruction) {
     llvm::dbgs() << p.first->getName() << "\t" << p.second.size() << "\n";
     for (auto &s : p.second) {
-      llvm::dbgs() << *s <<"\t" << psr::getSrcCodeFromIR(s) << "\n";
+      llvm::dbgs() << *s << "\t" << psr::getSrcCodeFromIR(s) << "\n";
     }
   }
-
 }
 
 std::string createSlice(string target, set<string> entrypoints,
@@ -541,37 +280,49 @@ std::string createSlice(string target, set<string> entrypoints,
   solver.dumpResults(out);
   out.close();
   cout << "\n";
-  process_results(DB,solver,cg);
+  process_results(DB, solver, cg);
   return "";
 }
 
 int main(int argc, const char **argv) {
-  std::chrono::steady_clock::time_point begin =
-      std::chrono::steady_clock::now();
+  if (argc < 3) {
+    cout << "Please provide the correct params" << endl;
+    //TODO USAGE
+    return -1;
+  }
   std::cout << "Current path is " << bofs::current_path() << '\n';
+  const auto target = argv[1];
   //  const auto target = "./targets/w_defects.ll";
   //    const auto target = "./targets/main_linked.ll";
   //    const auto target = "./targets/ex.ll";
   //    const auto target =
   //    "/media/Volume/Arbeit/Arbeit/code/slicing-eval/memcached/memcached.ll";
   //  const auto target = "./targets/toSlice.ll";
-  const auto target = "./targets/min_ex_ssa.ll";
+//  const auto target = "./targets/min_ex_ssa.ll";
   //  const auto target = "./targets/parson_linked.ll";
   //  const auto target =
   //  "/media/Volume/Arbeit/Arbeit/code/slicing-eval/git/git-linked.ll";
-  const auto entryfunction = "main";
+//  const auto entryfunction = "main";
   //    const auto entryfunction = "parse_command";
-  const set<std::string> entrypoints{entryfunction};
+
   //  initializeLogger(true);
   //    std::ifstream  in("targets/locations_json.json");
   //    std::ifstream in("targets/locations_memcached_command.json");
   //    std::ifstream in("targets/locations_memcached_single.json");
   //  std::ifstream in("targets/toSlice.json");
-  std::ifstream in("targets/min_ex.json");
+//  std::ifstream in("targets/min_ex.json");
   //  std::ifstream  in("targets/parson_serialize.json");
+  std::ifstream in(argv[2]);
   json j;
   in >> j;
   auto terms = j.get<vector<Term>>();
+  set<std::string> entrypoints;
+  for (int i= 3; i< argc; ++i) {
+    entrypoints.insert(argv[i]);
+    cout << argv[i] << endl;
+  }
+  std::chrono::steady_clock::time_point begin =
+      std::chrono::steady_clock::now();
   createSlice(target, entrypoints, terms);
   std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
   std::cout << "Time difference = "
@@ -597,3 +348,67 @@ int main(int argc, const char **argv) {
 // Recursive Control dependency backward - branch conditions
 // branch conditions forward -> include block
 // Coll Declarations
+
+std::set<SlicerFact> NormalFlowFunction::computeTargets(SlicerFact source) {
+  set<SlicerFact> facts;
+  facts.insert(source);
+  // check logic for conditions
+  if (!source.isZero()) {
+    //            llvm::dbgs() << "===================\n";
+    //            llvm::dbgs() << "succ: " <<*curr << "\n";
+    //            llvm::dbgs() << "Source: "<< *source.getInstruction() << "\n";
+    //            llvm::dbgs() << curr->getFunction()->getName() << "\n";
+
+    for (const auto &user : curr->users()) {
+      //                llvm::dbgs() << "USE" << *user << "\n";
+      if (user == source.getInstruction()) {
+        //                    llvm::dbgs() << "RELEVANT USE" << "\n";
+        facts.insert(SlicerFact(source.getLocation(), curr));
+      }
+    }
+  }
+  return facts;
+}
+std::set<SlicerFact> CallToRetFlowFunction::computeTargets(SlicerFact source) {
+  set<SlicerFact> facts;
+  facts.insert(source);
+  return facts;
+}
+template <typename ICFG_T>
+std::set<SlicerFact> CallFlowFunction<ICFG_T>::computeTargets(SlicerFact source) {
+  set<SlicerFact> facts;
+//    facts.insert(source);
+#ifdef __INTERPROCEDURAL__
+  if (!source.isZero()) {
+    auto targets = ICF->getStartPointsOf(destMthd);
+    for (auto target : targets) {
+      facts.insert(SlicerFact(source.getLocation(), target));
+    }
+  }
+#endif
+  return facts;
+}
+template <typename ICFG_T>
+std::set<SlicerFact> RetFlowFunction<ICFG_T>::computeTargets(SlicerFact source) {
+  //    llvm::dbgs() << "\n";
+  //    callSite->dump();
+  //    calleeMthd->dump();
+  //    exitStmt->dump();
+  //    retSite->dump();
+  //    llvm::dbgs() << "\n";
+  set<SlicerFact> facts;
+//    facts.insert(source);
+#ifdef __INTERPROCEDURAL__
+  //    for (unsigned int i = 0; i < callSite->getNumOperands(); ++i) {
+//      const auto op = callSite->getOperand(i);
+//      if (source.getInstruction() == op) {
+//        facts.insert(SlicerFact(source.getLocation(),
+//                                getNthFunctionArgument(calleeMthd, i)));
+//      }
+//    }
+//    if (!source.isZero()) {
+//      facts.insert(SlicerFact(source.getLocation(), exitStmt));
+//    }
+#endif
+  return facts;
+}
