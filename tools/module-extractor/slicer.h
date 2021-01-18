@@ -95,7 +95,12 @@ ostream &operator<<(ostream &os, const Term &t) {
   os << "]";
   return os;
 }
-
+class SlicerFact;
+namespace std {
+template <> struct hash<SlicerFact> {
+  size_t operator()(const SlicerFact &x) const;
+};
+}
 class SlicerFact {
 public:
   SlicerFact() = default;
@@ -111,6 +116,7 @@ public:
   const llvm::Value *getInstruction() { return i; }
   const Location *getLocation() { return l; }
 
+  friend size_t std::hash<SlicerFact>::operator()(const SlicerFact &x) const;
 private:
   const Location *l = nullptr;
   const Value *i = nullptr;
@@ -140,10 +146,9 @@ raw_ostream &operator<<(raw_ostream &os, const SlicerFact &rhs) {
   return os;
 }
 
+
 namespace std {
-template <> struct hash<SlicerFact> {
-  size_t operator()(const SlicerFact &x) const { return 0; }
-};
+ size_t hash<SlicerFact>::operator()(const SlicerFact &x) const { return llvm::hash_value(x.i); }
 } // namespace std
 template <typename ICFG_T> struct SlicerAnalysisDomain : public AnalysisDomain {
   using d_t = SlicerFact;
@@ -213,4 +218,7 @@ private:
   [[maybe_unused]] set<const Function *> callees;
 };
 
+
+void compare_slice(string original, string module);
 #endif // PHASAR_SLICER_H
+
