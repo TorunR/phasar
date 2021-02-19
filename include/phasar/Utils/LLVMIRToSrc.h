@@ -46,7 +46,7 @@ unsigned int getColumnFromIR(const llvm::Value *V);
 std::string getSrcCodeFromIR(const llvm::Value *V);
 
 std::string getModuleIDFromIR(const llvm::Value *V);
-
+unsigned int getFunctionHeaderLines(const llvm::Value *V);
 } // namespace psr
 
 #endif

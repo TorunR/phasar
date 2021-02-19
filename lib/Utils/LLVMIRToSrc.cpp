@@ -206,6 +206,43 @@ unsigned int getColumnFromIR(const llvm::Value *V) {
   return 0;
 }
 
+unsigned int getFunctionHeaderLines(const llvm::Value *V) {
+  unsigned int LineNr = getLineFromIR(V);
+  if (LineNr > 0) {
+    boost::filesystem::path Path(getFilePathFromIR(V));
+    if (boost::filesystem::exists(Path) &&
+        !boost::filesystem::is_directory(Path)) {
+      std::ifstream Ifs(Path.string(), std::ios::binary);
+      if (Ifs.is_open()) {
+        Ifs.seekg(std::ios::beg);
+        std::string SrcLine;
+        for (unsigned int I = 0; I < LineNr - 1; ++I) {
+          Ifs.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+        }
+        while (true) {
+          std::getline(Ifs, SrcLine);
+          std::string res;
+          // TODO
+          unsigned int i = 0; // columnNr -1;
+          while (true) {
+            auto current_char = SrcLine[i];
+            res.push_back(current_char);
+            i++;
+            if (current_char == '{') {
+              return LineNr;
+            }
+            if (SrcLine.length() == i) {
+              break;
+            }
+          }
+          LineNr++;
+          //        boost::algorithm::trim(SrcLine);
+        }
+      }
+    }
+  }
+}
+
 std::string getSrcCodeFromIR(const llvm::Value *V) {
   unsigned int LineNr = getLineFromIR(V);
   unsigned int columnNr = getColumnFromIR(V);

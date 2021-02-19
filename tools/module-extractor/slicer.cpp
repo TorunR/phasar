@@ -117,6 +117,24 @@ void copy_files(map<string, set<unsigned int>> &file_lines) {
     }
     out.close();
   }
+  if (true) {
+    std::ofstream out("out/command.c");
+    for (const auto &file : file_lines) {
+      std::ifstream in("out/" + file.first.substr(file.first.find_last_of("/"), string::npos));
+      std::string line;
+      bool last_empty = false;
+      while (std::getline(in, line)) {
+        if (line.empty()) {
+          if (!last_empty) out << endl;
+          last_empty = true;
+        } else {
+          last_empty = false;
+          out << line << endl;
+        }
+      }
+    }
+    out.close();
+  }
 }
 
 template <typename AnalysisDomainTy>
@@ -126,9 +144,13 @@ void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
   llvm::dbgs() << "SOLVING DONE\n";
   for (auto *const module : DB.getAllModules()) {
     for (auto &function : module->functions()) {
-      llvm::dbgs() << "\n\n\n" << function.getName() << "\n\n\n";
+      auto fun_name = function.getName();
+      llvm::dbgs() << "\n\n\n" << fun_name << "\n\n\n";
       bool isUsed = false;
       for (auto &bb : function) {
+        if (fun_name == "parse_value") {
+          llvm::dbgs() << "";
+        }
         for (const auto &i : bb) {
           llvm::dbgs()
               << "========================================================\n";
@@ -211,7 +233,7 @@ void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
                << "\n";
   map<std::string, set<unsigned int>> file_lines;
   for (auto &p : slice_instruction) {
-    llvm::dbgs() << p.first->getName() << "\t" << p.second.size() << "\n";
+    llvm::dbgs()<<"F:\t" << p.first->getName() << "\t" << p.second.size() << "\n";
     auto file = psr::getFilePathFromIR(p.first);
     auto first = true;
     //    file_lines[file]
@@ -220,7 +242,10 @@ void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
       if (first) {
         auto line = psr::getLineFromIR(p.first);
         llvm::dbgs() << psr::getSrcCodeFromIR(p.first) << "\t" << line << "\n";
-        file_lines[file].insert(line);
+        auto end_line = psr::getFunctionHeaderLines(p.first);
+        for (unsigned int l = line; l <= end_line; ++ l) {
+          file_lines[file].insert(l);
+          }
         first = false;
       }
 
@@ -234,13 +259,20 @@ void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
             file_lines[file].insert(localVariable->getLine());
           }
         }
-
       } else {
         auto line = psr::getLineFromIR(s);
         auto src = psr::getSrcCodeFromIR(s);
+
         llvm::dbgs() << *s << "\t" << src << "\t" << line << "\n";
         file_lines[file].insert(line);
         if (auto inst = dyn_cast<Instruction>(s)) {
+          for (unsigned int i =0; i < inst->getNumOperands();++i){
+            if (auto global = dyn_cast<GlobalVariable>(inst->getOperand(i))){
+                auto g_line = psr::getLineFromIR(global);
+                auto g_src = psr::getSrcCodeFromIR(global);
+                file_lines[file].insert(g_line);
+              }
+          }
           if (inst->getDebugLoc()) {
             if (auto scope =
                     dyn_cast<DILexicalBlock>(inst->getDebugLoc().getScope())) {
@@ -248,12 +280,12 @@ void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
             }
           }
           if (auto br = dyn_cast<BranchInst>(inst)) {
-            if (br->getNumOperands() == 1 && src.find("}") == src.npos) {
+            if (br->isUnconditional() && src.find("}") == src.npos && line != 0) {
               file_lines[file].insert(line + 1);
             }
           }
           if (auto ret = dyn_cast<ReturnInst>(inst)) {
-            if (src.find("}") == src.npos) {
+            if (src.find("}") == src.npos&& line != 0) {
               file_lines[file].insert(line + 1);
             }
           }
@@ -268,6 +300,7 @@ std::string createSlice(string target, const set<string> &entrypoints,
                         const vector<Term> &terms) {
   ProjectIRDB DB({std::move(target)}, IRDBOptions::WPA);
   initializeLogger(false);
+//    initializeLogger(true);
   LLVMTypeHierarchy th(DB);
   LLVMBasedBackwardsICFG cg(DB, CallGraphAnalysisType::DTA, set(entrypoints),
                             &th);
@@ -277,6 +310,7 @@ std::string createSlice(string target, const set<string> &entrypoints,
   for (auto *module : DB.getAllModules()) {
     for (auto &function : module->functions()) {
       for (auto &bb : function) {
+        auto sub  = function.getSubprogram();
         for (const auto &i : bb) {
           set<SlicerFact> facts;
           if (auto *debuglog = i.getDebugLoc().get()) {
@@ -301,7 +335,9 @@ std::string createSlice(string target, const set<string> &entrypoints,
             for (const auto &t : terms) {
               for (const auto &l : t.locations) {
                 // check same statement
-                if (l.line == line && t.file == file) {
+                if (t.file == file &&
+                    (l.line == line ||
+                     l.line == sub->getLine())) {
                   facts.insert(SlicerFact(&l, &i));
                   if (const auto *branch = dyn_cast<BranchInst>(&i)) {
                     if (branch->isConditional()) {
@@ -416,19 +452,22 @@ int main(int argc, const char **argv) {
       << "Time difference = "
       << std::chrono::duration_cast<std::chrono::minutes>(end - begin).count()
       << "[m]" << std::endl;
-  //  compare_slice(
-  //  "/home/torun/Volume/Arbeit/Arbeit/code/slicing-eval/smaller/the_silver_searcher/src/ignore.c",
-  //      "/media/Volume/Arbeit/Arbeit/code/phasar/out/ignore.c");
-    compare_slice(
-        "/media/Volume/Arbeit/Arbeit/code/slicing-eval/smaller/parson/parse.c",
-        "/media/Volume/Arbeit/Arbeit/code/phasar/out/parson.c");
-  //  compare_slice(
-  //      "/media/Volume/Arbeit/Arbeit/code/slicing-eval/smaller/parson/serialize.c",
-  //      "/media/Volume/Arbeit/Arbeit/code/phasar/out/parson.c");
-  //    compare_slice("/media/Volume/Arbeit/Arbeit/code/slicing-eval/smaller/inotify-tools/libinotifytools/src/stats.c",
-  //                  "/media/Volume/Arbeit/Arbeit/code/phasar/out/inotifytools.c");
-  //    compare_slice("/media/Volume/Arbeit/Arbeit/code/slicing-eval/smaller/fping/src/stats.c",
-  //                  "/media/Volume/Arbeit/Arbeit/code/phasar/out/fping.c");
+//  compare_slice(
+//      "/home/torun/Volume/Arbeit/Arbeit/code/slicing-eval/memcached/command.c",
+//      "/media/Volume/Arbeit/Arbeit/code/phasar/out/command.c");
+//    compare_slice(
+//    "/home/torun/Volume/Arbeit/Arbeit/code/slicing-eval/smaller/the_silver_searcher/src/ignore.c",
+//        "/media/Volume/Arbeit/Arbeit/code/phasar/out/ignore.c");
+//    compare_slice(
+//        "/media/Volume/Arbeit/Arbeit/code/slicing-eval/smaller/parson/parse.c",
+//        "/media/Volume/Arbeit/Arbeit/code/phasar/out/parson.c");
+//    compare_slice(
+//        "/media/Volume/Arbeit/Arbeit/code/slicing-eval/smaller/parson/serialize.c",
+//        "/media/Volume/Arbeit/Arbeit/code/phasar/out/parson.c");
+//      compare_slice("/media/Volume/Arbeit/Arbeit/code/slicing-eval/smaller/inotify-tools/libinotifytools/src/stats.c",
+//                    "/media/Volume/Arbeit/Arbeit/code/phasar/out/inotifytools.c");
+//      compare_slice("/media/Volume/Arbeit/Arbeit/code/slicing-eval/smaller/fping/src/stats.c",
+//                    "/media/Volume/Arbeit/Arbeit/code/phasar/out/fping.c");
   return 0;
 }
 // TODO:
@@ -442,18 +481,27 @@ std::set<SlicerFact> NormalFlowFunction::computeTargets(SlicerFact source) {
   // check logic for conditions
 
   if (!source.isZero()) {
-    facts.insert(source);
+    if (auto branch = dyn_cast<BranchInst>(source.getInstruction())) {
+      if (!branch->isUnconditional()) {
+        facts.insert(source);
+      }
+    } else if (auto call = dyn_cast<DbgInfoIntrinsic>(source.getInstruction())) {
+      // Don't propagate further
+    }   else {
+      facts.insert(source);
+    }
             llvm::dbgs() << "===================\n";
             llvm::dbgs() << "curr: " << *curr << "\n";
             llvm::dbgs() << "Source: " << *source.getInstruction() << "\n";
+            llvm::dbgs() << "src: " << psr::getSrcCodeFromIR(curr) << "\n";
             llvm::dbgs() << curr->getFunction()->getName() << "\n";
     auto fun = curr->getFunction()->getName();
-    if (fun == "bar" && isa<GetElementPtrInst>(curr)) {
+    if (fun == "parse_value") {
       llvm::dbgs() << "";
     }
-    if (auto load = dyn_cast<LoadInst>(curr)) {
-      llvm::dbgs() << "";
-    }
+//    if (auto load = dyn_cast<LoadInst>(curr)) {
+//      llvm::dbgs() << "";
+//    }
     //        if (auto gep = dyn_cast<GetElementPtrInst>(curr)) {
     //          llvm::dbgs() << "GEP";
     //        }
@@ -466,6 +514,17 @@ std::set<SlicerFact> NormalFlowFunction::computeTargets(SlicerFact source) {
         //                                    llvm::dbgs() << "RELEVANT USE" <<
         //                                    "\n";
         facts.insert(SlicerFact(source.getLocation(), curr));
+      }
+    }
+    if (auto load = dyn_cast<LoadInst>(curr) ) {
+      if (auto ins = dyn_cast<Instruction>(source.getInstruction())) {
+        for (unsigned int i = 0; i < load->getNumOperands(); ++i) {
+          for (unsigned int j = 0; j < ins->getNumOperands(); ++j) {
+            if (load->getOperand(i) == ins->getOperand(j)) {
+              facts.insert(SlicerFact(source.getLocation(),load));
+            }
+          }
+        }
       }
     }
     if (auto gep = dyn_cast<GetElementPtrInst>(curr)){
@@ -496,17 +555,17 @@ std::set<SlicerFact> NormalFlowFunction::computeTargets(SlicerFact source) {
 std::set<SlicerFact> CallToRetFlowFunction::computeTargets(SlicerFact source) {
   set<SlicerFact> facts;
   if (!source.isZero() && source.getInstruction() != callSite) {
-    llvm::dbgs() << "===================\n";
-    llvm::dbgs() << "curr: " << *callSite << "\n";
-    llvm::dbgs() << "Source: " << *source.getInstruction() << "\n";
-    llvm::dbgs() << callSite->getFunction()->getName() << "\n";
+//    llvm::dbgs() << "===================\n";
+//    llvm::dbgs() << "curr: " << *callSite << "\n";
+//    llvm::dbgs() << "Source: " << *source.getInstruction() << "\n";
+//    llvm::dbgs() << callSite->getFunction()->getName() << "\n";
     auto fun = callSite->getFunction()->getName();
-    if (fun == "bar" && isa<AddOperator>(source.getInstruction())) {
-      llvm::dbgs() << "";
-    }
+//    if (fun == "process_string") {
+//      llvm::dbgs() << "";
+//    }
     if (auto ins = dyn_cast<Instruction>(source.getInstruction())) {
       for (unsigned int j = 0; j < ins->getNumOperands(); ++j) {
-        auto op2 = ins->getOperand(j);
+//        auto op2 = ins->getOperand(j);
         for (unsigned int i = 0; i < callSite->getNumOperands(); ++i) {
           auto op1 = callSite->getOperand(i);
           if (auto metadata = dyn_cast<MetadataAsValue>(op1)) {
@@ -541,9 +600,30 @@ CallFlowFunction<ICFG_T>::computeTargets(SlicerFact source) {
 //    facts.insert(source);
 #ifdef __INTERPROCEDURAL__
   if (!source.isZero()) {
+//    llvm::dbgs() << "===================\n";
+//    llvm::dbgs() << "curr: " << *callStmt << "\n";
+//    llvm::dbgs() << "Source: " << *source.getInstruction() << "\n";
+//    llvm::dbgs() << callStmt->getFunction()->getName() << "\n";
+//
+//    if (callStmt->getFunction()->getName() == "inotifytools_get_stat_by_filename") {
+//      llvm::dbgs() << "";
+//    }
     auto targets = ICF->getStartPointsOf(destMthd);
-    for (auto target : targets) {
-      facts.insert(SlicerFact(source.getLocation(), target));
+    bool isRelevant = false;
+    // source is global or uses the return value
+    if (auto inst = dyn_cast<Instruction>(source.getInstruction())) {
+      for (unsigned int i = 0; i < inst->getNumOperands();++i) {
+        auto op = inst->getOperand(i);
+        isRelevant |= isa<GlobalVariable>(op);
+      }
+      for (const auto& use : callStmt->uses()) {
+        isRelevant |= (use.getUser() == inst);
+      }
+    }
+    if (isRelevant) {
+      for (auto target : targets) {
+        facts.insert(SlicerFact(source.getLocation(), target));
+      }
     }
   }
 #endif
@@ -606,12 +686,17 @@ void compare_slice(string original, string module) {
                  original_lines.begin(), original_lines.end(),
 
                  std::inserter(additional, additional.begin()));
-  cout << "Intersection Size is\t:" << intersection.size() << endl;
+  cout << "Original Size is:\t" << original_lines.size() << endl;
+  cout << "Intersection Size is:\t" << intersection.size() << endl;
   cout << "Additional Size is:\t" << additional.size() << endl;
   cout << "Missing Size is:\t" << missing.size() << endl;
   cout << "\n\n\n";
   for (auto m : missing) {
     cout << m << "\n";
+  }
+  cout << "====================================\n";
+  for (auto a : additional) {
+    cout << a << "\n";
   }
 }
 
