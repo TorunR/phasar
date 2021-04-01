@@ -1,0 +1,288 @@
+[
+  {
+    "term": "ignore",
+    "file": "src/ignore.c",
+    "locations": [
+      {
+        "line": 9,
+        "column": 11,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 23,
+        "column": 1,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 25,
+        "column": 52,
+        "meta": {
+          "Kind": "Comment"
+        }
+      },
+      {
+        "line": 27,
+        "column": 28,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 33,
+        "column": 64,
+        "meta": {
+          "Kind": "Comment"
+        }
+      },
+      {
+        "line": 34,
+        "column": 13,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 35,
+        "column": 7,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 36,
+        "column": 10,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 38,
+        "column": 9,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 42,
+        "column": 14,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 46,
+        "column": 1,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 47,
+        "column": 5,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 83,
+        "column": 14,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 99,
+        "column": 10,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 116,
+        "column": 53,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 168,
+        "column": 22,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 169,
+        "column": 26,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 172,
+        "column": 23,
+        "meta": {
+          "Kind": "Comment"
+        }
+      },
+      {
+        "line": 173,
+        "column": 11,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 177,
+        "column": 29,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 180,
+        "column": 24,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 193,
+        "column": 13,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 209,
+        "column": 17,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 217,
+        "column": 28,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 233,
+        "column": 32,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 240,
+        "column": 32,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 250,
+        "column": 40,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 260,
+        "column": 36,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 270,
+        "column": 36,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 279,
+        "column": 32,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 299,
+        "column": 32,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 300,
+        "column": 45,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 306,
+        "column": 28,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 311,
+        "column": 23,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 315,
+        "column": 48,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 347,
+        "column": 11,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 353,
+        "column": 36,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 358,
+        "column": 18,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 371,
+        "column": 31,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 381,
+        "column": 23,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      }
+    ]
+  }
+]

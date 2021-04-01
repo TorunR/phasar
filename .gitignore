@@ -142,3 +142,5 @@ unittests/Utils/LLVMShorthandsTest
 unittests/Utils/PAMMTest
 
 cmake-build*/*
+
+out

@@ -1,0 +1,22 @@
+[
+  {
+    "term": "foo",
+    "file": "switch_ex.c",
+    "locations": [
+      {
+        "line": 10,
+        "column": 5,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 16,
+        "column": 5,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      }
+    ]
+  }
+]

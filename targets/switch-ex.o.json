@@ -1,0 +1,1 @@
+{ "directory": "/media/Volume/Arbeit/Arbeit/code/phasar/targets", "file": "../targets/switch_ex.c", "output": "../targets/switch_ex.ll", "arguments": ["/home/torun/code/llvm-project/install/bin/clang-10", "-xc", "../targets/switch_ex.c", "-o", "../targets/switch_ex.ll", "-S", "-emit-llvm", "-g", "--target=x86_64-unknown-linux-gnu"]},

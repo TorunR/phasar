@@ -1,0 +1,197 @@
+[
+  {
+    "term": "stats",
+    "file": "fping.c",
+    "locations": [
+      {
+        "line": 328,
+        "column": 11,
+        "meta": {
+          "Kind": "Comment"
+        }
+      },
+      {
+        "line": 352,
+        "column": 31,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 377,
+        "column": 23,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 380,
+        "column": 19,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 395,
+        "column": 6,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 531,
+        "column": 12,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 705,
+        "column": 13,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 955,
+        "column": 13,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 956,
+        "column": 32,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 1315,
+        "column": 13,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 1548,
+        "column": 26,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 1551,
+        "column": 26,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 1554,
+        "column": 9,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 1555,
+        "column": 22,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 1577,
+        "column": 30,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 1588,
+        "column": 23,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 1774,
+        "column": 26,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 1785,
+        "column": 19,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 2011,
+        "column": 4,
+        "meta": {
+          "Kind": "Comment"
+        }
+      },
+      {
+        "line": 2017,
+        "column": 6,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 2063,
+        "column": 4,
+        "meta": {
+          "Kind": "Comment"
+        }
+      },
+      {
+        "line": 2066,
+        "column": 6,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 2358,
+        "column": 15,
+        "meta": {
+          "Kind": "Comment"
+        }
+      },
+      {
+        "line": 2386,
+        "column": 15,
+        "meta": {
+          "Kind": "Comment"
+        }
+      },
+      {
+        "line": 2387,
+        "column": 5,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 2388,
+        "column": 22,
+        "meta": {
+          "Kind": "Comment"
+        }
+      },
+      {
+        "line": 2939,
+        "column": 28,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      }
+    ]
+  }
+]

@@ -125,11 +125,12 @@ void copy_files(map<string, set<unsigned int>> &file_lines) {
       bool last_empty = false;
       while (std::getline(in, line)) {
         if (line.empty()) {
-          if (!last_empty) out << endl;
+          if (!last_empty) {
+            out << endl;
+          }
           last_empty = true;
         } else {
           last_empty = false;
-          out << line << endl;
         }
       }
     }
@@ -276,6 +277,10 @@ void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
           if (inst->getDebugLoc()) {
             if (auto scope =
                     dyn_cast<DILexicalBlock>(inst->getDebugLoc().getScope())) {
+              auto lines = add_block(file,line);
+              for (auto line : *lines ){
+                file_lines[file].insert(line);
+              }
               file_lines[file].insert(scope->getLine());
             }
           }
@@ -335,7 +340,9 @@ std::string createSlice(string target, const set<string> &entrypoints,
             for (const auto &t : terms) {
               for (const auto &l : t.locations) {
                 // check same statement
-                if (t.file == file &&
+                if (
+//                    t.file == file
+//                    &&
                     (l.line == line ||
                      l.line == sub->getLine())) {
                   facts.insert(SlicerFact(&l, &i));
@@ -490,15 +497,15 @@ std::set<SlicerFact> NormalFlowFunction::computeTargets(SlicerFact source) {
     }   else {
       facts.insert(source);
     }
-            llvm::dbgs() << "===================\n";
-            llvm::dbgs() << "curr: " << *curr << "\n";
-            llvm::dbgs() << "Source: " << *source.getInstruction() << "\n";
-            llvm::dbgs() << "src: " << psr::getSrcCodeFromIR(curr) << "\n";
-            llvm::dbgs() << curr->getFunction()->getName() << "\n";
+//            llvm::dbgs() << "===================\n";
+//            llvm::dbgs() << "curr: " << *curr << "\n";
+//            llvm::dbgs() << "Source: " << *source.getInstruction() << "\n";
+//            llvm::dbgs() << "src: " << psr::getSrcCodeFromIR(curr) << "\n";
+//            llvm::dbgs() << curr->getFunction()->getName() << "\n";
     auto fun = curr->getFunction()->getName();
-    if (fun == "parse_value") {
-      llvm::dbgs() << "";
-    }
+//    if (fun == "parse_value") {
+//      llvm::dbgs() << "";
+//    }
 //    if (auto load = dyn_cast<LoadInst>(curr)) {
 //      llvm::dbgs() << "";
 //    }
@@ -601,10 +608,10 @@ CallFlowFunction<ICFG_T>::computeTargets(SlicerFact source) {
 #ifdef __INTERPROCEDURAL__
   if (!source.isZero()) {
 //    llvm::dbgs() << "===================\n";
-//    llvm::dbgs() << "curr: " << *callStmt << "\n";
+//    llvm::dbgs() <<  "Curr:" <<*callStmt << "\n";
 //    llvm::dbgs() << "Source: " << *source.getInstruction() << "\n";
 //    llvm::dbgs() << callStmt->getFunction()->getName() << "\n";
-//
+
 //    if (callStmt->getFunction()->getName() == "inotifytools_get_stat_by_filename") {
 //      llvm::dbgs() << "";
 //    }
@@ -698,6 +705,109 @@ void compare_slice(string original, string module) {
   for (auto a : additional) {
     cout << a << "\n";
   }
+}
+class RewriteSourceVisitor
+    : public clang::RecursiveASTVisitor<RewriteSourceVisitor> {
+public:
+  RewriteSourceVisitor(clang::ASTContext &context, unsigned int line,
+                       const shared_ptr<std::set<unsigned int>> &resultingLines)
+      : context(context), line(line), resulting_lines(resultingLines), candidate_lines() {
+  }
+
+  [[maybe_unused]] virtual bool VisitStmt(clang::Stmt *S) {
+    auto es = context.getSourceManager().getExpansionLineNumber(S->getBeginLoc());
+    auto es4 = context.getSourceManager().getExpansionLineNumber(S->getEndLoc());\
+   if (es == es4 && es == line) {
+     for (auto &l : candidate_lines) {
+       resulting_lines->insert(l);
+     }
+   }
+    return true;
+  }
+
+  [[maybe_unused]] virtual bool VisitDefaultStmt(clang::DefaultStmt *S){
+    auto line = context.getSourceManager().getExpansionLineNumber(S->getBeginLoc());
+    candidate_lines.insert(line);
+    return true;
+  }
+
+  bool VisitCaseStmt(clang::CaseStmt *S) {
+    auto line = context.getSourceManager().getExpansionLineNumber(S->getBeginLoc());
+    candidate_lines.insert(line);
+    return true;
+  }
+
+  virtual bool VisitBreakStmt(clang::BreakStmt *S) {
+    candidate_lines.clear();
+    return true;
+  }
+
+private:
+  clang::ASTContext &context;
+  unsigned int line;
+  shared_ptr<std::set<unsigned int>> resulting_lines;
+  std::set<unsigned int> candidate_lines;
+};
+
+
+class RewriteSourceConsumer : public clang::ASTConsumer {
+public:
+  RewriteSourceConsumer(
+      unsigned int line,
+      const shared_ptr<std::set<unsigned int>> &resultingLines)
+      : line(line), resulting_lines(resultingLines) {}
+  virtual void HandleTranslationUnit(clang::ASTContext &Context) {
+    // Traversing the translation unit decl via a RecursiveASTVisitor
+    // will visit all nodes in the AST.
+//    llvm::dbgs << Context.getTranslationUnitDecl();
+    RewriteSourceVisitor Visitor(Context,line,resulting_lines);
+    Visitor.TraverseDecl(Context.getTranslationUnitDecl());
+  }
+private:
+  // A RecursiveASTVisitor implementation.
+
+  unsigned int line;
+  shared_ptr<std::set<unsigned int>> resulting_lines;
+};
+class RewriteSourceAction
+//    : public clang::ASTFrontendAction
+{
+
+
+public:
+  RewriteSourceAction(unsigned int line,
+                      const shared_ptr<std::set<unsigned int>> &resultingLines)
+      : line(line), resulting_lines(resultingLines) {}
+
+  std::unique_ptr<clang::ASTConsumer> newASTConsumer() {
+    return std::unique_ptr<clang::ASTConsumer>(
+        new RewriteSourceConsumer(line,resulting_lines));
+  }
+//  virtual std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(
+//      clang::CompilerInstance &Compiler, llvm::StringRef InFile) {
+//    return std::unique_ptr<clang::ASTConsumer>(
+//        new RewriteSourceConsumer(line));
+//  }
+
+private:
+  unsigned int line;
+  shared_ptr<std::set<unsigned int>> resulting_lines;
+};
+
+
+shared_ptr<std::set<unsigned int>> add_block(std::string file,unsigned int line) {
+  auto num_args = 0;
+//  auto args = "-- clang /media/Volume/Arbeit/Arbeit/code/phasar/targets/switch_ex.c -o switch_ex";
+  string err = "ERROR_MY";
+  auto db  =
+      clang::tooling::CompilationDatabase::autoDetectFromDirectory("/media/Volume/Arbeit/Arbeit/code/slicing-eval/smaller/parson",err);
+  std::vector<std::string> Sources;
+  Sources.push_back(file);
+  clang::tooling::ClangTool Tool(*db, Sources);
+  auto res = make_shared<std::set<unsigned int>>();
+  Tool.run(clang::tooling::newFrontendActionFactory<RewriteSourceAction>(new RewriteSourceAction(line,res)).get());
+//  llvm::dbgs() << "";
+  return res;
 }
 
 // TODO Check for opening brace

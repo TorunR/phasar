@@ -1,0 +1,287 @@
+[
+  {
+    "term": "stats",
+    "file": "inotifytools.c",
+    "locations": [
+      {
+        "line": 144,
+        "column": 20,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 156,
+        "column": 13,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 294,
+        "column": 10,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 333,
+        "column": 10,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 351,
+        "column": 12,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 425,
+        "column": 30,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 428,
+        "column": 27,
+        "meta": {
+          "Kind": "Comment"
+        }
+      },
+      {
+        "line": 429,
+        "column": 14,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 430,
+        "column": 25,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 448,
+        "column": 10,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 1137,
+        "column": 15,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 1138,
+        "column": 10,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 1410,
+        "column": 13,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 1508,
+        "column": 28,
+        "meta": {
+          "Kind": "Comment"
+        }
+      },
+      {
+        "line": 1511,
+        "column": 38,
+        "meta": {
+          "Kind": "Comment"
+        }
+      },
+      {
+        "line": 1517,
+        "column": 58,
+        "meta": {
+          "Kind": "Comment"
+        }
+      },
+      {
+        "line": 1521,
+        "column": 15,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 1533,
+        "column": 28,
+        "meta": {
+          "Kind": "Comment"
+        }
+      },
+      {
+        "line": 1540,
+        "column": 30,
+        "meta": {
+          "Kind": "Comment"
+        }
+      },
+      {
+        "line": 1544,
+        "column": 15,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 1581,
+        "column": 28,
+        "meta": {
+          "Kind": "Comment"
+        }
+      },
+      {
+        "line": 1584,
+        "column": 40,
+        "meta": {
+          "Kind": "Comment"
+        }
+      },
+      {
+        "line": 1590,
+        "column": 52,
+        "meta": {
+          "Kind": "Comment"
+        }
+      },
+      {
+        "line": 1597,
+        "column": 22,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      }
+    ]
+  },
+  {
+    "term": "stat",
+    "file": "inotifytools.c",
+    "locations": [
+      {
+        "line": 1335,
+        "column": 20,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 1342,
+        "column": 20,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 1352,
+        "column": 20,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 1353,
+        "column": 20,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 1472,
+        "column": 20,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 1520,
+        "column": 20,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 1525,
+        "column": 20,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 1543,
+        "column": 20,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 1597,
+        "column": 20,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 1599,
+        "column": 20,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 1621,
+        "column": 20,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 1623,
+        "column": 20,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 1629,
+        "column": 20,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 2124,
+        "column": 20,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      },
+      {
+        "line": 2125,
+        "column": 20,
+        "meta": {
+          "Kind": "Identifier"
+        }
+      }
+    ]
+  }
+]

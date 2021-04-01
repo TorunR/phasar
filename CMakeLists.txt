@@ -1,5 +1,5 @@
 cmake_minimum_required (VERSION 3.0)
-
+cmake_policy(SET CMP0060 NEW)
 # Check if we build within the llvm source tree
 if (DEFINED LLVM_MAIN_SRC_DIR)
   set(PHASAR_IN_TREE 1)
