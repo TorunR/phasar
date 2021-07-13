@@ -1,7 +1,6 @@
 #include "slicer.h"
 #include <llvm/IR/IntrinsicInst.h>
 #include <sys/resource.h>
-#define __INTERPROCEDURAL__
 
 struct SliceComparator {
   template <typename T>
@@ -120,7 +119,8 @@ void copy_files(map<string, set<unsigned int>> &file_lines) {
   if (true) {
     std::ofstream out("out/command.c");
     for (const auto &file : file_lines) {
-      std::ifstream in("out/" + file.first.substr(file.first.find_last_of("/"), string::npos));
+      std::ifstream in("out/" + file.first.substr(file.first.find_last_of("/"),
+                                                  string::npos));
       std::string line;
       bool last_empty = false;
       while (std::getline(in, line)) {
@@ -130,6 +130,7 @@ void copy_files(map<string, set<unsigned int>> &file_lines) {
           }
           last_empty = true;
         } else {
+          out << line;
           last_empty = false;
         }
       }
@@ -149,26 +150,29 @@ void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
       llvm::dbgs() << "\n\n\n" << fun_name << "\n\n\n";
       bool isUsed = false;
       for (auto &bb : function) {
-        if (fun_name == "parse_value") {
-          llvm::dbgs() << "";
-        }
         for (const auto &i : bb) {
-          llvm::dbgs()
-              << "========================================================\n";
+          //          llvm::dbgs()
+          //              <<
+          //              "========================================================\n";
           auto res = solver.ifdsResultsAt(&i);
-          llvm::dbgs() << "INS: " << llvmIRToString(&i)
-                       << " FACTS:" << res.size() << "\n";
-          llvm::dbgs() << "SRC: " << psr::getSrcCodeFromIR(&i) << "\n"
-                       << res.size() << "\n";
+          //          llvm::dbgs() << "INS: " << llvmIRToString(&i)
+          //                       << " FACTS:" << res.size() << "\n";
+          //          llvm::dbgs() << "SRC: " << psr::getSrcCodeFromIR(&i) <<
+          //          "\n"
+          //                       << res.size() << "\n";
           for (auto fact : res) {
             if (!fact.isZero()) {
               auto extractedInstruction = fact.getInstruction();
-              llvm::dbgs() << "FACT INS: "
-                           << llvmIRToString(fact.getInstruction()) << "\n";
-              llvm::dbgs() << "SRC: " << *fact.getLocation() << " "
-                           << psr::getSrcCodeFromIR(extractedInstruction)
-                           << "\n"
-                           << "\n";
+              //              llvm::dbgs() << "FACT INS: "
+              //                           <<
+              //                           llvmIRToString(fact.getInstruction())
+              //                           << "\n";
+              //              llvm::dbgs() << "SRC: " << *fact.getLocation() <<
+              //              " "
+              //                           <<
+              //                           psr::getSrcCodeFromIR(extractedInstruction)
+              //                           << "\n"
+              //                           << "\n";
               //              if (extractedInstruction-> == function &&
               //              extractedInstruction == &i || true) {
 
@@ -220,8 +224,8 @@ void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
             //                std::make_tuple(psr::getSrcCodeFromIR(exit),
             //                                *createLocation(INT_MAX, INT_MAX),
             //                                exit));
-            llvm::dbgs() << "GOT NO DEBUG LOG"
-                         << "\n";
+            //            llvm::dbgs() << "GOT NO DEBUG LOG"
+            //                         << "\n";
           }
         }
       }
@@ -234,28 +238,29 @@ void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
                << "\n";
   map<std::string, set<unsigned int>> file_lines;
   for (auto &p : slice_instruction) {
-    llvm::dbgs()<<"F:\t" << p.first->getName() << "\t" << p.second.size() << "\n";
+    llvm::dbgs() << "F:\t" << p.first->getName() << "\t" << p.second.size()
+                 << "\n";
     auto file = psr::getFilePathFromIR(p.first);
     auto first = true;
-    //    file_lines[file]
-    //    file_lines[file] = set<unsigned int> ();
+
+    std::set<unsigned int> block_lines;
     for (const auto &s : p.second) {
       if (first) {
         auto line = psr::getLineFromIR(p.first);
         llvm::dbgs() << psr::getSrcCodeFromIR(p.first) << "\t" << line << "\n";
         auto end_line = psr::getFunctionHeaderLines(p.first);
-        for (unsigned int l = line; l <= end_line; ++ l) {
+        for (unsigned int l = line; l <= end_line; ++l) {
           file_lines[file].insert(l);
-          }
+        }
         first = false;
       }
 
-      if (auto phi = dyn_cast<PHINode>(s)) {
+      if (auto *phi = dyn_cast<PHINode>(s)) {
         llvm::dbgs() << "GOT PHI\t" << *s << "\n";
-      } else if (auto debug_call = dyn_cast<DbgValueInst>(s)) {
-        if (auto debug_info =
+      } else if (auto *debug_call = dyn_cast<DbgValueInst>(s)) {
+        if (auto *debug_info =
                 dyn_cast<MetadataAsValue>(debug_call->getOperand(1))) {
-          if (auto localVariable =
+          if (auto *localVariable =
                   dyn_cast<DILocalVariable>(debug_info->getMetadata())) {
             file_lines[file].insert(localVariable->getLine());
           }
@@ -266,36 +271,38 @@ void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
 
         llvm::dbgs() << *s << "\t" << src << "\t" << line << "\n";
         file_lines[file].insert(line);
-        if (auto inst = dyn_cast<Instruction>(s)) {
-          for (unsigned int i =0; i < inst->getNumOperands();++i){
-            if (auto global = dyn_cast<GlobalVariable>(inst->getOperand(i))){
-                auto g_line = psr::getLineFromIR(global);
-                auto g_src = psr::getSrcCodeFromIR(global);
-                file_lines[file].insert(g_line);
-              }
+        if (auto *inst = dyn_cast<Instruction>(s)) {
+          for (unsigned int i = 0; i < inst->getNumOperands(); ++i) {
+            if (auto *global = dyn_cast<GlobalVariable>(inst->getOperand(i))) {
+              auto g_line = psr::getLineFromIR(global);
+              auto g_src = psr::getSrcCodeFromIR(global);
+              file_lines[file].insert(g_line);
+            }
           }
           if (inst->getDebugLoc()) {
-            if (auto scope =
+            if (auto *scope =
                     dyn_cast<DILexicalBlock>(inst->getDebugLoc().getScope())) {
-              auto lines = add_block(file,line);
-              for (auto line : *lines ){
-                file_lines[file].insert(line);
-              }
+              block_lines.insert(line);
               file_lines[file].insert(scope->getLine());
             }
           }
-          if (auto br = dyn_cast<BranchInst>(inst)) {
-            if (br->isUnconditional() && src.find("}") == src.npos && line != 0) {
+          if (auto *br = dyn_cast<BranchInst>(inst)) {
+            if (br->isUnconditional() && src.find('}') == src.npos &&
+                line != 0) {
               file_lines[file].insert(line + 1);
             }
           }
-          if (auto ret = dyn_cast<ReturnInst>(inst)) {
-            if (src.find("}") == src.npos&& line != 0) {
+          if (auto *ret = dyn_cast<ReturnInst>(inst)) {
+            if (src.find('}') == src.npos && line != 0) {
               file_lines[file].insert(line + 1);
             }
           }
         }
       }
+    }
+    auto lines = add_block(file, &block_lines);
+    for (auto line : *lines) {
+      file_lines[file].insert(line);
     }
   }
   copy_files(file_lines);
@@ -305,7 +312,7 @@ std::string createSlice(string target, const set<string> &entrypoints,
                         const vector<Term> &terms) {
   ProjectIRDB DB({std::move(target)}, IRDBOptions::WPA);
   initializeLogger(false);
-//    initializeLogger(true);
+  //    initializeLogger(true);
   LLVMTypeHierarchy th(DB);
   LLVMBasedBackwardsICFG cg(DB, CallGraphAnalysisType::DTA, set(entrypoints),
                             &th);
@@ -315,7 +322,7 @@ std::string createSlice(string target, const set<string> &entrypoints,
   for (auto *module : DB.getAllModules()) {
     for (auto &function : module->functions()) {
       for (auto &bb : function) {
-        auto sub  = function.getSubprogram();
+        auto sub = function.getSubprogram();
         for (const auto &i : bb) {
           set<SlicerFact> facts;
           if (auto *debuglog = i.getDebugLoc().get()) {
@@ -338,13 +345,15 @@ std::string createSlice(string target, const set<string> &entrypoints,
               }
             }
             for (const auto &t : terms) {
+              const size_t last_slash_idx = t.file.find_last_of("\\/");
+              std::string term_file_name(t.file);
+              if (std::string::npos != last_slash_idx) {
+                term_file_name.erase(0, last_slash_idx + 1);
+              }
               for (const auto &l : t.locations) {
                 // check same statement
-                if (
-//                    t.file == file
-//                    &&
-                    (l.line == line ||
-                     l.line == sub->getLine())) {
+                if (file.endswith(term_file_name) &&
+                    (l.line == line || l.line == sub->getLine())) {
                   facts.insert(SlicerFact(&l, &i));
                   if (const auto *branch = dyn_cast<BranchInst>(&i)) {
                     if (branch->isConditional()) {
@@ -379,10 +388,10 @@ std::string createSlice(string target, const set<string> &entrypoints,
   solver.solve();
   ofstream out;
   out.open("out/graph.dot");
-  solver.emitESGAsDot(out);
+  //  solver.emitESGAsDot(out);
   out.close();
   out.open("out/results.txt");
-  solver.dumpResults(out);
+  //  solver.dumpResults(out);
   out.close();
   cout << "\n";
   process_results(DB, solver, cg);
@@ -390,7 +399,7 @@ std::string createSlice(string target, const set<string> &entrypoints,
 }
 
 int main(int argc, const char **argv) {
-  const rlim_t kStackSize = 128 * 1024 * 1024; // min stack size = 128 MB
+  const rlim_t kStackSize = 512 * 1024 * 1024; // min stack size = 128 MB
   struct rlimit rl;
   int result;
   result = getrlimit(RLIMIT_STACK, &rl);
@@ -442,6 +451,28 @@ int main(int argc, const char **argv) {
       std::chrono::steady_clock::now();
   createSlice(target, entrypoints, terms);
   std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+//      compare_slice(
+//          "/home/torun/Volume/Arbeit/Arbeit/code/slicing-eval/memcached-stats/stats.c",
+//          "/media/Volume/Arbeit/Arbeit/code/phasar/out/command.c");
+  compare_slice("/home/torun/Volume/Arbeit/Arbeit/code/slicing-eval/"
+                "memcached-command/command.c",
+                "/media/Volume/Arbeit/Arbeit/code/phasar/out/command.c");
+//        compare_slice(
+//        "/home/torun/Volume/Arbeit/Arbeit/code/slicing-eval/smaller/the_silver_searcher/src/ignore.c",
+//            "/media/Volume/Arbeit/Arbeit/code/phasar/out/ignore.c");
+//    compare_slice(
+//        "/media/Volume/Arbeit/Arbeit/code/slicing-eval/smaller/parson/parse.c",
+//        "/media/Volume/Arbeit/Arbeit/code/phasar/out/parson.c");
+//      compare_slice(
+//          "/media/Volume/Arbeit/Arbeit/code/slicing-eval/smaller/parson/serialize.c",
+//          "/media/Volume/Arbeit/Arbeit/code/phasar/out/parson.c");
+//        compare_slice("/media/Volume/Arbeit/Arbeit/code/slicing-eval/smaller/inotify-tools/libinotifytools/src/stats.c",
+//                      "/media/Volume/Arbeit/Arbeit/code/phasar/out/inotifytools.c");
+//        compare_slice("/media/Volume/Arbeit/Arbeit/code/slicing-eval/smaller/fping/src/stats.c",
+//                      "/media/Volume/Arbeit/Arbeit/code/phasar/out/fping.c");
+//        compare_slice(
+//          "/media/Volume/Arbeit/Arbeit/code/slicing-eval/redis/src/cluster_manager.c",
+//          "/media/Volume/Arbeit/Arbeit/code/phasar/out/command.c");
   std::cout << "Time difference = "
             << std::chrono::duration_cast<std::chrono::microseconds>(end -
                                                                      begin)
@@ -459,22 +490,6 @@ int main(int argc, const char **argv) {
       << "Time difference = "
       << std::chrono::duration_cast<std::chrono::minutes>(end - begin).count()
       << "[m]" << std::endl;
-//  compare_slice(
-//      "/home/torun/Volume/Arbeit/Arbeit/code/slicing-eval/memcached/command.c",
-//      "/media/Volume/Arbeit/Arbeit/code/phasar/out/command.c");
-//    compare_slice(
-//    "/home/torun/Volume/Arbeit/Arbeit/code/slicing-eval/smaller/the_silver_searcher/src/ignore.c",
-//        "/media/Volume/Arbeit/Arbeit/code/phasar/out/ignore.c");
-//    compare_slice(
-//        "/media/Volume/Arbeit/Arbeit/code/slicing-eval/smaller/parson/parse.c",
-//        "/media/Volume/Arbeit/Arbeit/code/phasar/out/parson.c");
-//    compare_slice(
-//        "/media/Volume/Arbeit/Arbeit/code/slicing-eval/smaller/parson/serialize.c",
-//        "/media/Volume/Arbeit/Arbeit/code/phasar/out/parson.c");
-//      compare_slice("/media/Volume/Arbeit/Arbeit/code/slicing-eval/smaller/inotify-tools/libinotifytools/src/stats.c",
-//                    "/media/Volume/Arbeit/Arbeit/code/phasar/out/inotifytools.c");
-//      compare_slice("/media/Volume/Arbeit/Arbeit/code/slicing-eval/smaller/fping/src/stats.c",
-//                    "/media/Volume/Arbeit/Arbeit/code/phasar/out/fping.c");
   return 0;
 }
 // TODO:
@@ -487,59 +502,52 @@ std::set<SlicerFact> NormalFlowFunction::computeTargets(SlicerFact source) {
 
   // check logic for conditions
 
-  if (!source.isZero()) {
+  if (!source.isZero() && source.is_within_limits()) {
     if (auto branch = dyn_cast<BranchInst>(source.getInstruction())) {
       if (!branch->isUnconditional()) {
         facts.insert(source);
       }
-    } else if (auto call = dyn_cast<DbgInfoIntrinsic>(source.getInstruction())) {
+    } else if (auto call =
+                   dyn_cast<DbgInfoIntrinsic>(source.getInstruction())) {
       // Don't propagate further
-    }   else {
+    } else {
       facts.insert(source);
     }
-//            llvm::dbgs() << "===================\n";
-//            llvm::dbgs() << "curr: " << *curr << "\n";
-//            llvm::dbgs() << "Source: " << *source.getInstruction() << "\n";
-//            llvm::dbgs() << "src: " << psr::getSrcCodeFromIR(curr) << "\n";
-//            llvm::dbgs() << curr->getFunction()->getName() << "\n";
+    //            llvm::dbgs() << "===================\n";
+    //            llvm::dbgs() << "curr: " << *curr << "\n";
+    //            llvm::dbgs() << "Source: " << *source.getInstruction() <<
+    //            "\n"; llvm::dbgs() << "src: " << psr::getSrcCodeFromIR(curr)
+    //            << "\n"; llvm::dbgs() << curr->getFunction()->getName() <<
+    //            "\n";
     auto fun = curr->getFunction()->getName();
-//    if (fun == "parse_value") {
-//      llvm::dbgs() << "";
-//    }
-//    if (auto load = dyn_cast<LoadInst>(curr)) {
-//      llvm::dbgs() << "";
-//    }
-    //        if (auto gep = dyn_cast<GetElementPtrInst>(curr)) {
-    //          llvm::dbgs() << "GEP";
-    //        }
-    //    if (auto store  = dyn_cast<StoreInst>(curr)) {
-    //      llvm::dbgs() << "Store";
-    //    }
+
     for (const auto &user : curr->users()) {
-      //                            llvm::dbgs() << "USE" << *user << "\n";
       if (user == source.getInstruction()) {
-        //                                    llvm::dbgs() << "RELEVANT USE" <<
-        //                                    "\n";
-        facts.insert(SlicerFact(source.getLocation(), curr));
+        facts.insert(
+            SlicerFact(source.getLocation(), curr, source.getInterDistance()));
       }
     }
-    if (auto load = dyn_cast<LoadInst>(curr) ) {
+#ifdef OPERAND_PROP
+    if (auto load = dyn_cast<LoadInst>(curr)) {
       if (auto ins = dyn_cast<Instruction>(source.getInstruction())) {
         for (unsigned int i = 0; i < load->getNumOperands(); ++i) {
           for (unsigned int j = 0; j < ins->getNumOperands(); ++j) {
             if (load->getOperand(i) == ins->getOperand(j)) {
-              facts.insert(SlicerFact(source.getLocation(),load));
+              facts.insert(SlicerFact(source.getLocation(), load,
+                                      source.getInterDistance()));
             }
           }
         }
       }
     }
-    if (auto gep = dyn_cast<GetElementPtrInst>(curr)){
+#endif
+    if (auto gep = dyn_cast<GetElementPtrInst>(curr)) {
       if (auto ins = dyn_cast<Instruction>(source.getInstruction())) {
         for (unsigned int i = 0; i < gep->getNumOperands(); ++i) {
           for (unsigned int j = 0; j < ins->getNumOperands(); ++j) {
             if (gep->getOperand(i) == ins->getOperand(j)) {
-              facts.insert(SlicerFact(source.getLocation(),gep));
+              facts.insert(SlicerFact(source.getLocation(), gep,
+                                      source.getInterDistance()));
             }
           }
         }
@@ -549,7 +557,8 @@ std::set<SlicerFact> NormalFlowFunction::computeTargets(SlicerFact source) {
       for (unsigned int i = 0; i < br->getNumOperands(); ++i) {
         if (auto *target = dyn_cast<BasicBlock>(br->getOperand(i))) {
           if (source.getInstruction() == &target->front()) {
-            facts.insert(SlicerFact(source.getLocation(), curr));
+            facts.insert(SlicerFact(source.getLocation(), curr,
+                                    source.getInterDistance()));
             // This is the phi instruction after the branch if we are the target
             // we are relevant
           }
@@ -561,18 +570,18 @@ std::set<SlicerFact> NormalFlowFunction::computeTargets(SlicerFact source) {
 }
 std::set<SlicerFact> CallToRetFlowFunction::computeTargets(SlicerFact source) {
   set<SlicerFact> facts;
-  if (!source.isZero() && source.getInstruction() != callSite) {
-//    llvm::dbgs() << "===================\n";
-//    llvm::dbgs() << "curr: " << *callSite << "\n";
-//    llvm::dbgs() << "Source: " << *source.getInstruction() << "\n";
-//    llvm::dbgs() << callSite->getFunction()->getName() << "\n";
-    auto fun = callSite->getFunction()->getName();
-//    if (fun == "process_string") {
-//      llvm::dbgs() << "";
-//    }
+  if (!source.isZero() && source.getInstruction() != callSite &&
+      source.is_within_limits()) {
+    //    llvm::dbgs() << "===================\n";
+    //    llvm::dbgs() << "curr: " << *callSite << "\n";
+    //    llvm::dbgs() << "Source: " << *source.getInstruction() << "\n";
+    //    llvm::dbgs() << callSite->getFunction()->getName() << "\n";
+    //    auto fun = callSite->getFunction()->getName();
+    //    if (fun == "process_string") {
+    //      llvm::dbgs() << "";
+    //    }
     if (auto ins = dyn_cast<Instruction>(source.getInstruction())) {
       for (unsigned int j = 0; j < ins->getNumOperands(); ++j) {
-//        auto op2 = ins->getOperand(j);
         for (unsigned int i = 0; i < callSite->getNumOperands(); ++i) {
           auto op1 = callSite->getOperand(i);
           if (auto metadata = dyn_cast<MetadataAsValue>(op1)) {
@@ -591,8 +600,6 @@ std::set<SlicerFact> CallToRetFlowFunction::computeTargets(SlicerFact source) {
     }
     for (const auto &user : callSite->users()) {
       if (user == source.getInstruction()) {
-        //                                    llvm::dbgs() << "RELEVANT USE" <<
-        //                                    "\n";
         facts.insert(SlicerFact(source.getLocation(), callSite));
       }
     }
@@ -606,34 +613,40 @@ CallFlowFunction<ICFG_T>::computeTargets(SlicerFact source) {
   set<SlicerFact> facts;
 //    facts.insert(source);
 #ifdef __INTERPROCEDURAL__
-  if (!source.isZero()) {
-//    llvm::dbgs() << "===================\n";
-//    llvm::dbgs() <<  "Curr:" <<*callStmt << "\n";
-//    llvm::dbgs() << "Source: " << *source.getInstruction() << "\n";
-//    llvm::dbgs() << callStmt->getFunction()->getName() << "\n";
+  if (!source.isZero() && source.is_within_limits()) {
+    //    llvm::dbgs() << "===================\n";
+    //    llvm::dbgs() <<  "Curr:" <<*callStmt << "\n";
+    //    llvm::dbgs() << "Source: " << *source.getInstruction() << "\n";
+    //    llvm::dbgs() << callStmt->getFunction()->getName() << "\n";
 
-//    if (callStmt->getFunction()->getName() == "inotifytools_get_stat_by_filename") {
-//      llvm::dbgs() << "";
-//    }
+    //    if (callStmt->getFunction()->getName() ==
+    //    "inotifytools_get_stat_by_filename") {
+    //      llvm::dbgs() << "";
+    //    }
     auto targets = ICF->getStartPointsOf(destMthd);
     bool isRelevant = false;
     // source is global or uses the return value
+#ifdef OPERAND_PROP
     if (auto inst = dyn_cast<Instruction>(source.getInstruction())) {
-      for (unsigned int i = 0; i < inst->getNumOperands();++i) {
+      for (unsigned int i = 0; i < inst->getNumOperands(); ++i) {
         auto op = inst->getOperand(i);
         isRelevant |= isa<GlobalVariable>(op);
       }
-      for (const auto& use : callStmt->uses()) {
+      for (const auto &use : callStmt->uses()) {
         isRelevant |= (use.getUser() == inst);
       }
     }
     if (isRelevant) {
-      for (auto target : targets) {
-        facts.insert(SlicerFact(source.getLocation(), target));
-      }
-    }
-  }
 #endif
+      for (auto target : targets) {
+        facts.insert(SlicerFact(source.getLocation(), target,
+                                source.getInterDistance() + 1));
+      }
+#ifdef OPERAND_PROP
+    }
+#endif // OPERAND_PROP
+  }
+#endif // INTERPROCEDURAL
   return facts;
 }
 template <typename ICFG_T>
@@ -648,16 +661,18 @@ RetFlowFunction<ICFG_T>::computeTargets(SlicerFact source) {
   set<SlicerFact> facts;
 //    facts.insert(source);
 #ifdef __INTERPROCEDURAL__
-  //    for (unsigned int i = 0; i < callSite->getNumOperands(); ++i) {
-//      const auto op = callSite->getOperand(i);
-//      if (source.getInstruction() == op) {
-//        facts.insert(SlicerFact(source.getLocation(),
-//                                getNthFunctionArgument(calleeMthd, i)));
-//      }
-//    }
-//    if (!source.isZero()) {
-//      facts.insert(SlicerFact(source.getLocation(), exitStmt));
-//    }
+  for (unsigned int i = 0; i < callSite->getNumOperands(); ++i) {
+    const auto op = callSite->getOperand(i);
+    if (source.getInstruction() == op) {
+      facts.insert(SlicerFact(source.getLocation(),
+                              getNthFunctionArgument(calleeMthd, i),
+                              source.getInterDistance() + 1));
+    }
+  }
+  if (!source.isZero() && source.is_within_limits()) {
+    facts.insert(SlicerFact(source.getLocation(), exitStmt,
+                            source.getInterDistance() + 1));
+  }
 #endif
   return facts;
 }
@@ -693,11 +708,7 @@ void compare_slice(string original, string module) {
                  original_lines.begin(), original_lines.end(),
 
                  std::inserter(additional, additional.begin()));
-  cout << "Original Size is:\t" << original_lines.size() << endl;
-  cout << "Intersection Size is:\t" << intersection.size() << endl;
-  cout << "Additional Size is:\t" << additional.size() << endl;
-  cout << "Missing Size is:\t" << missing.size() << endl;
-  cout << "\n\n\n";
+
   for (auto m : missing) {
     cout << m << "\n";
   }
@@ -705,34 +716,44 @@ void compare_slice(string original, string module) {
   for (auto a : additional) {
     cout << a << "\n";
   }
+  cout << "Original Size is:\t" << original_lines.size() << endl;
+  cout << "Intersection Size is:\t" << intersection.size() << endl;
+  cout << "Additional Size is:\t" << additional.size() << endl;
+  cout << "Missing Size is:\t" << missing.size() << endl;
+  cout << "\n\n\n";
 }
 class RewriteSourceVisitor
     : public clang::RecursiveASTVisitor<RewriteSourceVisitor> {
 public:
-  RewriteSourceVisitor(clang::ASTContext &context, unsigned int line,
+  RewriteSourceVisitor(clang::ASTContext &context,
+                       std::set<unsigned int> *target_lines,
                        const shared_ptr<std::set<unsigned int>> &resultingLines)
-      : context(context), line(line), resulting_lines(resultingLines), candidate_lines() {
-  }
+      : context(context), target_lines(target_lines),
+        resulting_lines(resultingLines), candidate_lines() {}
 
   [[maybe_unused]] virtual bool VisitStmt(clang::Stmt *S) {
-    auto es = context.getSourceManager().getExpansionLineNumber(S->getBeginLoc());
-    auto es4 = context.getSourceManager().getExpansionLineNumber(S->getEndLoc());\
-   if (es == es4 && es == line) {
-     for (auto &l : candidate_lines) {
-       resulting_lines->insert(l);
-     }
-   }
+    auto es =
+        context.getSourceManager().getExpansionLineNumber(S->getBeginLoc());
+    auto es4 =
+        context.getSourceManager().getExpansionLineNumber(S->getEndLoc());
+    if (es == es4 && target_lines->find(es) != target_lines->end()) {
+      for (auto &l : candidate_lines) {
+        resulting_lines->insert(l);
+      }
+    }
     return true;
   }
 
-  [[maybe_unused]] virtual bool VisitDefaultStmt(clang::DefaultStmt *S){
-    auto line = context.getSourceManager().getExpansionLineNumber(S->getBeginLoc());
+  [[maybe_unused]] virtual bool VisitDefaultStmt(clang::DefaultStmt *S) {
+    auto line =
+        context.getSourceManager().getExpansionLineNumber(S->getBeginLoc());
     candidate_lines.insert(line);
     return true;
   }
 
   bool VisitCaseStmt(clang::CaseStmt *S) {
-    auto line = context.getSourceManager().getExpansionLineNumber(S->getBeginLoc());
+    auto line =
+        context.getSourceManager().getExpansionLineNumber(S->getBeginLoc());
     candidate_lines.insert(line);
     return true;
   }
@@ -744,70 +765,70 @@ public:
 
 private:
   clang::ASTContext &context;
-  unsigned int line;
+  std::set<unsigned int> *target_lines;
   shared_ptr<std::set<unsigned int>> resulting_lines;
   std::set<unsigned int> candidate_lines;
 };
 
-
 class RewriteSourceConsumer : public clang::ASTConsumer {
 public:
   RewriteSourceConsumer(
-      unsigned int line,
+      std::set<unsigned int> *target_lines,
       const shared_ptr<std::set<unsigned int>> &resultingLines)
-      : line(line), resulting_lines(resultingLines) {}
+      : target_lines(target_lines), resulting_lines(resultingLines) {}
   virtual void HandleTranslationUnit(clang::ASTContext &Context) {
     // Traversing the translation unit decl via a RecursiveASTVisitor
     // will visit all nodes in the AST.
-//    llvm::dbgs << Context.getTranslationUnitDecl();
-    RewriteSourceVisitor Visitor(Context,line,resulting_lines);
+    //    llvm::dbgs << Context.getTranslationUnitDecl();
+    RewriteSourceVisitor Visitor(Context, target_lines, resulting_lines);
     Visitor.TraverseDecl(Context.getTranslationUnitDecl());
   }
+
 private:
   // A RecursiveASTVisitor implementation.
 
-  unsigned int line;
+  std::set<unsigned int> *target_lines;
   shared_ptr<std::set<unsigned int>> resulting_lines;
 };
 class RewriteSourceAction
 //    : public clang::ASTFrontendAction
 {
 
-
 public:
-  RewriteSourceAction(unsigned int line,
+  RewriteSourceAction(std::set<unsigned int> *target_lines,
                       const shared_ptr<std::set<unsigned int>> &resultingLines)
-      : line(line), resulting_lines(resultingLines) {}
+      : target_lines(target_lines), resulting_lines(resultingLines) {}
 
   std::unique_ptr<clang::ASTConsumer> newASTConsumer() {
     return std::unique_ptr<clang::ASTConsumer>(
-        new RewriteSourceConsumer(line,resulting_lines));
+        new RewriteSourceConsumer(target_lines, resulting_lines));
   }
-//  virtual std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(
-//      clang::CompilerInstance &Compiler, llvm::StringRef InFile) {
-//    return std::unique_ptr<clang::ASTConsumer>(
-//        new RewriteSourceConsumer(line));
-//  }
 
 private:
-  unsigned int line;
+  std::set<unsigned int> *target_lines;
   shared_ptr<std::set<unsigned int>> resulting_lines;
 };
 
-
-shared_ptr<std::set<unsigned int>> add_block(std::string file,unsigned int line) {
-  auto num_args = 0;
-//  auto args = "-- clang /media/Volume/Arbeit/Arbeit/code/phasar/targets/switch_ex.c -o switch_ex";
+shared_ptr<std::set<unsigned int>>
+add_block(std::string file, std::set<unsigned int> *target_lines) {
   string err = "ERROR_MY";
-  auto db  =
-      clang::tooling::CompilationDatabase::autoDetectFromDirectory("/media/Volume/Arbeit/Arbeit/code/slicing-eval/smaller/parson",err);
+  auto db = clang::tooling::CompilationDatabase::autoDetectFromDirectory(
+//      "/home/torun/Volume/Arbeit/Arbeit/code/slicing-eval/smaller/parson",err
+//      "/media/Volume/Arbeit/Arbeit/code/slicing-eval/smaller/the_silver_searcher",err
+//      "/media/Volume/Arbeit/Arbeit/code/slicing-eval/smaller/inotify-tools",err
+//  );
+//  auto db = clang::tooling::CompilationDatabase::autoDetectFromDirectory(
+//      "/media/Volume/Arbeit/Arbeit/code/slicing-eval/smaller/fping",err
+//  );
+      "/media/Volume/Arbeit/Arbeit/code/slicing-eval/memcached-command", err);
+//    auto db = clang::tooling::CompilationDatabase::autoDetectFromDirectory(
+//      "/media/Volume/Arbeit/Arbeit/code/slicing-eval/redis", err);
   std::vector<std::string> Sources;
   Sources.push_back(file);
   clang::tooling::ClangTool Tool(*db, Sources);
   auto res = make_shared<std::set<unsigned int>>();
-  Tool.run(clang::tooling::newFrontendActionFactory<RewriteSourceAction>(new RewriteSourceAction(line,res)).get());
-//  llvm::dbgs() << "";
+  Tool.run(clang::tooling::newFrontendActionFactory<RewriteSourceAction>(
+               new RewriteSourceAction(target_lines, res))
+               .get());
   return res;
 }
-
-// TODO Check for opening brace

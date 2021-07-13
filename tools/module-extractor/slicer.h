@@ -35,7 +35,9 @@
 #include <string>
 #include <utility>
 #include <vector>
-
+#define __INTERPROCEDURAL__
+#define OPERAND_PROP
+//#define _DISTANCE_LIMITS_
 namespace bofs = boost::filesystem;
 using namespace llvm;
 using namespace std;
@@ -58,6 +60,10 @@ Location *createLocation(unsigned int line, unsigned int column) {
 
 bool operator<(const Location &l1, const Location &l2) {
   return l1.line < l2.line || (l1.line == l2.line && l1.column < l2.column);
+}
+
+bool operator==(const Location &l1, const Location &l2) {
+  return l1.line == l2.line || l1.column == l2.column;
 }
 
 void to_json(json &j, const Location &l) {
@@ -105,11 +111,19 @@ namespace std {
 template <> struct hash<SlicerFact> {
   size_t operator()(const SlicerFact &x) const;
 };
-}
+} // namespace std
 class SlicerFact {
 public:
   SlicerFact() = default;
-  SlicerFact(const Location *l, const Value *i) : l(l), i(i) {}
+  SlicerFact(const Location *l, const Value *i)
+      : l(l), i(i)  {}
+  SlicerFact(const Location *l, const Value *i,
+             int8_t inter_distance)
+      : l(l), i(i)
+#ifdef _DISTANCE_LIMITS_
+        ,inter_distance(inter_distance)
+#endif
+  {}
   bool operator<(const SlicerFact &rhs) const { return i < rhs.i; }
   bool operator==(const SlicerFact &rhs) const {
     return i == rhs.i && l == rhs.l;
@@ -120,11 +134,26 @@ public:
   [[nodiscard]] bool isZero() const { return i == nullptr; }
   const llvm::Value *getInstruction() { return i; }
   const Location *getLocation() { return l; }
+  int8_t getInterDistance() const;
 
   friend size_t std::hash<SlicerFact>::operator()(const SlicerFact &x) const;
+
+  bool is_within_limits() {
+#ifdef _DISTANCE_LIMITS_
+    return inter_distance < INTER_LIMIT;
+#else
+    return true;
+#endif
+  }
+#ifdef _DISTANCE_LIMITS_
+  static constexpr int8_t INTER_LIMIT = 3;
+#endif
 private:
   const Location *l = nullptr;
   const Value *i = nullptr;
+#ifdef _DISTANCE_LIMITS_
+  int8_t inter_distance =0;
+#endif
 };
 
 std::ostream &operator<<(std::ostream &os, const SlicerFact &rhs) {
@@ -150,10 +179,16 @@ raw_ostream &operator<<(raw_ostream &os, const SlicerFact &rhs) {
   }
   return os;
 }
-
+#ifdef _DISTANCE_LIMITS_
+int8_t SlicerFact::getInterDistance() const { return inter_distance; }
+#else
+int8_t SlicerFact::getInterDistance() const { return 0; }
+#endif
 
 namespace std {
- size_t hash<SlicerFact>::operator()(const SlicerFact &x) const { return llvm::hash_value(x.i); }
+size_t hash<SlicerFact>::operator()(const SlicerFact &x) const {
+  return llvm::hash_value(x.i);
+}
 } // namespace std
 template <typename ICFG_T> struct SlicerAnalysisDomain : public AnalysisDomain {
   using d_t = SlicerFact;
@@ -223,9 +258,7 @@ private:
   [[maybe_unused]] set<const Function *> callees;
 };
 
-
 void compare_slice(string original, string module);
 
-shared_ptr<set<unsigned int>> add_block(std::string file,unsigned int line);
+shared_ptr<set<unsigned int>> add_block(std::string file, std::set<unsigned int> *target_lines);
 #endif // PHASAR_SLICER_H
-
