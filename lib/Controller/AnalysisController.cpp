@@ -35,6 +35,7 @@
 #include "phasar/PhasarLLVM/DataFlowSolver/IfdsIde/Problems/IFDSTaintAnalysis.h"
 #include "phasar/PhasarLLVM/DataFlowSolver/IfdsIde/Problems/IFDSTypeAnalysis.h"
 #include "phasar/PhasarLLVM/DataFlowSolver/IfdsIde/Problems/IFDSUninitializedVariables.h"
+#include "phasar/PhasarLLVM/DataFlowSolver/IfdsIde/Problems/TypeStateDescriptions/CSTDFILEIOTypeStateDescription.h"
 #include "phasar/PhasarLLVM/DataFlowSolver/IfdsIde/Problems/TypeStateDescriptions/OpenSSLEVPKDFDescription.h"
 #include "phasar/PhasarLLVM/DataFlowSolver/IfdsIde/Solver/IDESolver.h"
 #include "phasar/PhasarLLVM/DataFlowSolver/IfdsIde/Solver/IFDSSolver.h"
@@ -76,7 +77,7 @@ bool needsToEmitPTA(AnalysisControllerEmitterOptions EmitterOptions) {
 AnalysisController::AnalysisController(
     ProjectIRDB &IRDB, std::vector<DataFlowAnalysisKind> DataFlowAnalyses,
     std::vector<std::string> AnalysisConfigs, PointerAnalysisType PTATy,
-    CallGraphAnalysisType CGTy, SoundnessFlag SF,
+    CallGraphAnalysisType CGTy, Soundness S,
     const std::set<std::string> &EntryPoints, AnalysisStrategy Strategy,
     AnalysisControllerEmitterOptions EmitterOptions,
     const std::string &ProjectID, const std::string &OutDirectory)
@@ -85,7 +86,7 @@ AnalysisController::AnalysisController(
       DataFlowAnalyses(std::move(DataFlowAnalyses)),
       AnalysisConfigs(std::move(AnalysisConfigs)), EntryPoints(EntryPoints),
       Strategy(Strategy), EmitterOptions(EmitterOptions), ProjectID(ProjectID),
-      OutDirectory(OutDirectory), SF(SF) {
+      OutDirectory(OutDirectory), S(S) {
   if (!OutDirectory.empty()) {
     // create directory for results
     ResultDirectory = OutDirectory + "/" + ProjectID + "-" + createTimeStamp();
@@ -164,6 +165,16 @@ void AnalysisController::executeWholeProgram() {
       } break;
       case DataFlowAnalysisType::IDEOpenSSLTypeStateAnalysis: {
         OpenSSLEVPKDFDescription TSDesc;
+        WholeProgramAnalysis<IDESolver_P<IDETypeStateAnalysis>,
+                             IDETypeStateAnalysis>
+            WPA(IRDB, &TSDesc, EntryPoints, &PT, &ICF, &TH);
+        WPA.solve();
+        emitRequestedDataFlowResults(WPA);
+        WPA.releaseAllHelperAnalyses();
+        WPA.releaseConfiguration();
+      } break;
+      case DataFlowAnalysisType::IDECSTDIOTypeStateAnalysis: {
+        CSTDFILEIOTypeStateDescription TSDesc;
         WholeProgramAnalysis<IDESolver_P<IDETypeStateAnalysis>,
                              IDETypeStateAnalysis>
             WPA(IRDB, &TSDesc, EntryPoints, &PT, &ICF, &TH);

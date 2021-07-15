@@ -9,13 +9,10 @@
 
 #ifndef PHASAR_PHASARLLVM_DOMAIN_ANALYSISDOMAIN_H_
 #define PHASAR_PHASARLLVM_DOMAIN_ANALYSISDOMAIN_H_
-
-namespace llvm {
-class Value;
-class Instruction;
-class Function;
-class StructType;
-} // namespace llvm
+#include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/Instruction.h"
+#include "llvm/IR/Value.h"
 
 namespace psr {
 class LLVMBasedCFG;
@@ -60,6 +57,8 @@ struct AnalysisDomain {
   // Lattice element --- Specifies the type of the underlying lattice; the value
   // computation domain IDE's edge functions or WPDS's weights operate on.
   using l_t = void;
+  // Container type to be used for analyses run in the monotone framework.
+  using mono_container_t = void;
 };
 
 struct LLVMAnalysisDomainDefault : public AnalysisDomain {

@@ -17,12 +17,15 @@
 #include <string>
 #include <type_traits>
 
+#include "llvm/IR/InstrTypes.h"
+
 #include "phasar/PhasarLLVM/DataFlowSolver/IfdsIde/EdgeFunctionComposer.h"
 #include "phasar/PhasarLLVM/DataFlowSolver/IfdsIde/IDETabulationProblem.h"
 #include "phasar/PhasarLLVM/DataFlowSolver/IfdsIde/Problems/TypeStateDescriptions/TypeStateDescription.h"
 #include "phasar/PhasarLLVM/Domain/AnalysisDomain.h"
 
 namespace llvm {
+class CallBase;
 class Instruction;
 class Function;
 class Value;
@@ -111,15 +114,15 @@ public:
 
   FlowFunctionPtrType getNormalFlowFunction(n_t curr, n_t succ) override;
 
-  FlowFunctionPtrType getCallFlowFunction(n_t callStmt, f_t destFun) override;
+  FlowFunctionPtrType getCallFlowFunction(n_t callSite, f_t destFun) override;
 
   FlowFunctionPtrType getRetFlowFunction(n_t callSite, f_t calleeFun,
-                                         n_t exitStmt, n_t retSite) override;
+                                         n_t exitInst, n_t retSite) override;
 
   FlowFunctionPtrType getCallToRetFlowFunction(n_t callSite, n_t retSite,
                                                std::set<f_t> callees) override;
 
-  FlowFunctionPtrType getSummaryFlowFunction(n_t callStmt,
+  FlowFunctionPtrType getSummaryFlowFunction(n_t callSite,
                                              f_t destFun) override;
 
   std::map<n_t, std::set<d_t>> initialSeeds() override;
@@ -135,11 +138,11 @@ public:
                         d_t succNode) override;
 
   std::shared_ptr<EdgeFunction<l_t>>
-  getCallEdgeFunction(n_t callStmt, d_t srcNode, f_t destinationFunction,
+  getCallEdgeFunction(n_t callSite, d_t srcNode, f_t destinationFunction,
                       d_t destNode) override;
 
   std::shared_ptr<EdgeFunction<l_t>>
-  getReturnEdgeFunction(n_t callSite, f_t calleeFunction, n_t exitStmt,
+  getReturnEdgeFunction(n_t callSite, f_t calleeFunction, n_t exitInst,
                         d_t exitNode, n_t reSite, d_t retNode) override;
 
   std::shared_ptr<EdgeFunction<l_t>>
@@ -147,7 +150,7 @@ public:
                            d_t retSiteNode, std::set<f_t> callees) override;
 
   std::shared_ptr<EdgeFunction<l_t>>
-  getSummaryEdgeFunction(n_t callStmt, d_t callNode, n_t retSite,
+  getSummaryEdgeFunction(n_t callSite, d_t callNode, n_t retSite,
                          d_t retSiteNode) override;
 
   l_t topElement() override;
@@ -197,13 +200,12 @@ public:
     // Do not use a reference here, since LLVM's StringRef's (obtained by str())
     // might turn to nullptr for whatever reason...
     const std::string Token;
-    l_t CurrentState;
-    llvm::ImmutableCallSite CS;
+    const llvm::CallBase *CallSite;
 
   public:
     TSEdgeFunction(const TypeStateDescription &tsd, const std::string tok,
-                   llvm::ImmutableCallSite cs)
-        : TSD(tsd), Token(tok), CurrentState(TSD.top()), CS(cs){};
+                   const llvm::CallBase *cb)
+        : TSD(tsd), Token(tok), CallSite(cb){};
 
     l_t computeTarget(l_t source) override;
 
@@ -216,8 +218,26 @@ public:
     bool equal_to(std::shared_ptr<EdgeFunction<l_t>> other) const override;
 
     void print(std::ostream &OS, bool isForDebug = false) const override;
+  };
+  class TSConstant : public EdgeFunction<l_t>,
+                     public std::enable_shared_from_this<TSConstant> {
+    const TypeStateDescription &TSD;
+    l_t State;
 
-    l_t getCurrentState() const { return CurrentState; }
+  public:
+    TSConstant(const TypeStateDescription &TSD, l_t State);
+
+    l_t computeTarget(l_t source) override;
+
+    std::shared_ptr<EdgeFunction<l_t>>
+    composeWith(std::shared_ptr<EdgeFunction<l_t>> secondFunction) override;
+
+    std::shared_ptr<EdgeFunction<l_t>>
+    joinWith(std::shared_ptr<EdgeFunction<l_t>> otherFunction) override;
+
+    bool equal_to(std::shared_ptr<EdgeFunction<l_t>> other) const override;
+
+    void print(std::ostream &OS, bool isForDebug = false) const override;
   };
 };
 

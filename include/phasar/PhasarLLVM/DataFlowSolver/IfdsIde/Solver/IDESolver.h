@@ -75,11 +75,9 @@ template <typename AnalysisDomainTy, typename Container> struct IFDSExtension {
       TransformedProblem;
 };
 
-/**
- * Solves the given IDETabulationProblem as described in the 1996 paper by
- * Sagiv, Horwitz and Reps. To solve the problem, call solve(). Results
- * can then be queried by using resultAt() and resultsAt().
- */
+/// Solves the given IDETabulationProblem as described in the 1996 paper by
+/// Sagiv, Horwitz and Reps. To solve the problem, call solve(). Results
+/// can then be queried by using resultAt() and resultsAt().
 template <typename AnalysisDomainTy,
           typename Container = std::set<typename AnalysisDomainTy::d_t>,
           bool = is_analysis_domain_extensions<AnalysisDomainTy>::value>
@@ -146,9 +144,7 @@ public:
     return J;
   }
 
-  /**
-   * @brief Runs the solver on the configured problem. This can take some time.
-   */
+  /// \brief Runs the solver on the configured problem. This can take some time.
   virtual void solve() {
     PAMM_GET_INSTANCE;
     REG_COUNTER("Gen facts", 0, PAMM_SEVERITY_LEVEL::Core);
@@ -197,23 +193,83 @@ public:
     }
   }
 
-  /**
-   * Returns the V-type result for the given value at the given statement.
-   * TOP values are never returned.
-   */
+  /// Returns the L-type result for the given value at the given statement.
   [[nodiscard]] virtual l_t resultAt(n_t stmt, d_t value) {
     return valtab.get(stmt, value);
   }
 
-  /**
-   * Returns the resulting environment for the given statement.
-   * The artificial zero value can be automatically stripped.
-   * TOP values are never returned.
-   */
+  /// Returns the L-type result at the given statement for the given data-flow
+  /// fact while respecting LLVM's SSA semantics.
+  ///
+  /// An example: when a value is loaded and the location loaded from, here
+  /// variable 'i', is a data-flow fact that holds, then the loaded value '%0'
+  /// will usually be generated and also holds. However, due to the underlying
+  /// theory (and respective implementation) this load instruction causes the
+  /// loaded value to be generated and thus, it will be valid only AFTER the
+  /// load instruction, i.e., at the successor instruction.
+  ///
+  ///   %0 = load i32, i32* %i, align 4
+  ///
+  /// This result accessor function returns the results at the successor
+  /// instruction(s) reflecting that the expression on the left-hand side holds
+  /// if the expression on the right-hand side holds.
+  template <typename NTy = n_t>
+  [[nodiscard]] typename std::enable_if_t<
+      std::is_same_v<std::remove_reference_t<NTy>, llvm::Instruction *>, l_t>
+  resultAtInLLVMSSA(NTy stmt, d_t value) {
+    if (stmt->getType()->isVoidTy()) {
+      return valtab.get(stmt, value);
+    }
+    assert(stmt->getNextNode() && "Expected to find a valid successor node!");
+    return valtab.get(stmt->getNextNode(), value);
+  }
+
+  /// Returns the resulting environment for the given statement.
+  /// The artificial zero value can be automatically stripped.
+  /// TOP values are never returned.
   [[nodiscard]] virtual std::unordered_map<d_t, l_t>
   resultsAt(n_t stmt, bool stripZero = false) /*TODO const*/ {
     std::unordered_map<d_t, l_t> result = valtab.row(stmt);
     if (stripZero) {
+      for (auto it = result.begin(); it != result.end();) {
+        if (IDEProblem.isZeroValue(it->first)) {
+          it = result.erase(it);
+        } else {
+          ++it;
+        }
+      }
+    }
+    return result;
+  }
+
+  /// Returns the data-flow results at the given statement while respecting
+  /// LLVM's SSA semantics.
+  ///
+  /// An example: when a value is loaded and the location loaded from, here
+  /// variable 'i', is a data-flow fact that holds, then the loaded value '%0'
+  /// will usually be generated and also holds. However, due to the underlying
+  /// theory (and respective implementation) this load instruction causes the
+  /// loaded value to be generated and thus, it will be valid only AFTER the
+  /// load instruction, i.e., at the successor instruction.
+  ///
+  ///   %0 = load i32, i32* %i, align 4
+  ///
+  /// This result accessor function returns the results at the successor
+  /// instruction(s) reflecting that the expression on the left-hand side holds
+  /// if the expression on the right-hand side holds.
+  template <typename NTy = n_t>
+  [[nodiscard]] typename std::enable_if_t<
+      std::is_same_v<std::remove_reference_t<NTy>, llvm::Instruction *>,
+      std::unordered_map<d_t, l_t>>
+  resultsAtInLLVMSSA(NTy stmt, bool stripZero = false) {
+    std::unordered_map<d_t, l_t> result = [this, stmt]() {
+      if (stmt->getType()->isVoidTy()) {
+        return valtab.row(stmt);
+      }
+      return valtab.row(stmt->getNextNode());
+    }();
+    if (stripZero) {
+      // TODO: replace with std::erase_if (C++20)
       for (auto it = result.begin(); it != result.end();) {
         if (IDEProblem.isZeroValue(it->first)) {
           it = result.erase(it);
@@ -385,24 +441,23 @@ protected:
             allTop, IDEProblem)),
         initialSeeds(IDEProblem.initialSeeds()) {}
 
-  /**
-   * Lines 13-20 of the algorithm; processing a call site in the caller's
-   * context.
-   *
-   * For each possible callee, registers incoming call edges.
-   * Also propagates call-to-return flows and summarized callee flows within
-   *the caller.
-   *
-   * 	The following cases must be considered and handled:
-   *		1. Process as usual and just process the call
-   *		2. Create a new summary for that function (which shall be done
-   *       by the problem)
-   *		3. Just use an existing summary provided by the problem
-   *		4. If a special function is called, use a special summary
-   *       function
-   *
-   * @param edge an edge whose target node resembles a method call
-   */
+  /// Lines 13-20 of the algorithm; processing a call site in the caller's
+  /// context.
+  ///
+  /// For each possible callee, registers incoming call edges.
+  /// Also propagates call-to-return flows and summarized callee flows within
+  /// the caller.
+  ///
+  /// 	The following cases must be considered and handled:
+  ///		1. Process as usual and just process the call
+  ///		2. Create a new summary for that function (which shall be done
+  ///       by the problem)
+  ///		3. Just use an existing summary provided by the problem
+  ///		4. If a special function is called, use a special summary
+  ///       function
+  ///
+  /// @param edge an edge whose target node resembles a method call
+  ///
   virtual void processCall(const PathEdge<n_t, d_t> edge) {
     PAMM_GET_INSTANCE;
     INC_COUNTER("Process Call", 1, PAMM_SEVERITY_LEVEL::Full);
@@ -576,46 +631,45 @@ protected:
           }
         }
       }
-      // line 17-19 of Naeem/Lhotak/Rodriguez
-      // process intra-procedural flows along call-to-return flow functions
-      for (n_t returnSiteN : returnSiteNs) {
-        FlowFunctionPtrType callToReturnFlowFunction =
-            cachedFlowEdgeFunctions.getCallToRetFlowFunction(n, returnSiteN,
-                                                             callees);
-        INC_COUNTER("FF Queries", 1, PAMM_SEVERITY_LEVEL::Full);
-        container_type returnFacts =
-            computeCallToReturnFlowFunction(callToReturnFlowFunction, d1, d2);
-        ADD_TO_HISTOGRAM("Data-flow facts", returnFacts.size(), 1,
-                         PAMM_SEVERITY_LEVEL::Full);
-        saveEdges(n, returnSiteN, d2, returnFacts, false);
-        for (d_t d3 : returnFacts) {
-          EdgeFunctionPtrType edgeFnE =
-              cachedFlowEdgeFunctions.getCallToRetEdgeFunction(
-                  n, d2, returnSiteN, d3, callees);
-          LOG_IF_ENABLE(BOOST_LOG_SEV(lg::get(), DEBUG)
-                        << "Queried Call-to-Return Edge Function: "
-                        << edgeFnE->str());
-          if (SolverConfig.emitESG()) {
-            intermediateEdgeFunctions[std::make_tuple(n, d2, returnSiteN, d3)]
-                .push_back(edgeFnE);
-          }
-          INC_COUNTER("EF Queries", 1, PAMM_SEVERITY_LEVEL::Full);
-          auto fPrime = f->composeWith(edgeFnE);
-          LOG_IF_ENABLE(BOOST_LOG_SEV(lg::get(), DEBUG)
-                            << "Compose: " << edgeFnE->str() << " * "
-                            << f->str() << " = " << fPrime->str();
-                        BOOST_LOG_SEV(lg::get(), DEBUG) << ' ');
-          propagate(d1, returnSiteN, d3, fPrime, n, false);
+    }
+    // line 17-19 of Naeem/Lhotak/Rodriguez
+    // process intra-procedural flows along call-to-return flow functions
+    for (n_t returnSiteN : returnSiteNs) {
+      FlowFunctionPtrType callToReturnFlowFunction =
+          cachedFlowEdgeFunctions.getCallToRetFlowFunction(n, returnSiteN,
+                                                           callees);
+      INC_COUNTER("FF Queries", 1, PAMM_SEVERITY_LEVEL::Full);
+      container_type returnFacts =
+          computeCallToReturnFlowFunction(callToReturnFlowFunction, d1, d2);
+      ADD_TO_HISTOGRAM("Data-flow facts", returnFacts.size(), 1,
+                       PAMM_SEVERITY_LEVEL::Full);
+      saveEdges(n, returnSiteN, d2, returnFacts, false);
+      for (d_t d3 : returnFacts) {
+        EdgeFunctionPtrType edgeFnE =
+            cachedFlowEdgeFunctions.getCallToRetEdgeFunction(n, d2, returnSiteN,
+                                                             d3, callees);
+        LOG_IF_ENABLE(BOOST_LOG_SEV(lg::get(), DEBUG)
+                      << "Queried Call-to-Return Edge Function: "
+                      << edgeFnE->str());
+        if (SolverConfig.emitESG()) {
+          intermediateEdgeFunctions[std::make_tuple(n, d2, returnSiteN, d3)]
+              .push_back(edgeFnE);
         }
+        INC_COUNTER("EF Queries", 1, PAMM_SEVERITY_LEVEL::Full);
+        auto fPrime = f->composeWith(edgeFnE);
+        LOG_IF_ENABLE(BOOST_LOG_SEV(lg::get(), DEBUG)
+                          << "Compose: " << edgeFnE->str() << " * " << f->str()
+                          << " = " << fPrime->str();
+                      BOOST_LOG_SEV(lg::get(), DEBUG) << ' ');
+        propagate(d1, returnSiteN, d3, fPrime, n, false);
       }
     }
   }
 
-  /**
-   * Lines 33-37 of the algorithm.
-   * Simply propagate normal, intra-procedural flows.
-   * @param edge
-   */
+  /// Lines 33-37 of the algorithm.
+  /// Simply propagate normal, intra-procedural flows.
+  /// @param edge
+  ///
   virtual void processNormalFlow(const PathEdge<n_t, d_t> edge) {
     PAMM_GET_INSTANCE;
     INC_COUNTER("Process Normal", 1, PAMM_SEVERITY_LEVEL::Full);
@@ -800,8 +854,8 @@ protected:
         << "  D target: " << IDEProblem.DtoString(edge.factAtTarget()) << " >";
         BOOST_LOG_SEV(lg::get(), DEBUG) << ' ');
 
-    if (!ICF->isCallStmt(edge.getTarget())) {
-      if (ICF->isExitStmt(edge.getTarget())) {
+    if (!ICF->isCallSite(edge.getTarget())) {
+      if (ICF->isExitInst(edge.getTarget())) {
         processExit(edge);
       }
       if (!ICF->getSuccsOf(edge.getTarget()).empty()) {
@@ -822,7 +876,7 @@ protected:
         unbalancedRetSites.count(n)) {
       propagateValueAtStart(nAndD, n);
     }
-    if (ICF->isCallStmt(n)) {
+    if (ICF->isCallSite(n)) {
       propagateValueAtCall(nAndD, n);
     }
   }
@@ -861,9 +915,7 @@ protected:
                                                        destVals.end());
   }
 
-  /**
-   * Computes the final values for edge functions.
-   */
+  /// Computes the final values for edge functions.
   void computeValues() {
     LOG_IF_ENABLE(BOOST_LOG_SEV(lg::get(), DEBUG) << "Start computing values");
     // Phase II(i)
@@ -892,11 +944,9 @@ protected:
         {allNonCallStartNodes.begin(), allNonCallStartNodes.end()});
   }
 
-  /**
-   * Schedules the processing of initial seeds, initiating the analysis.
-   * Clients should only call this methods if performing synchronization on
-   * their own. Normally, solve() should be called instead.
-   */
+  /// Schedules the processing of initial seeds, initiating the analysis.
+  /// Clients should only call this methods if performing synchronization on
+  /// their own. Normally, solve() should be called instead.
   void submitInitialSeeds() {
     PAMM_GET_INSTANCE;
     for (const auto &[StartPoint, Facts] : initialSeeds) {
@@ -917,15 +967,14 @@ protected:
     }
   }
 
-  /**
-   * Lines 21-32 of the algorithm.
-   *
-   * Stores callee-side summaries.
-   * Also, at the side of the caller, propagates intra-procedural flows to
-   * return sites using those newly computed summaries.
-   *
-   * @param edge an edge whose target node resembles a method exit
-   */
+  /// Lines 21-32 of the algorithm.
+  ///
+  /// Stores callee-side summaries.
+  /// Also, at the side of the caller, propagates intra-procedural flows to
+  /// return sites using those newly computed summaries.
+  ///
+  /// @param edge an edge whose target node resembles a method exit
+  ///
   virtual void processExit(const PathEdge<n_t, d_t> edge) {
     PAMM_GET_INSTANCE;
     INC_COUNTER("Process Exit", 1, PAMM_SEVERITY_LEVEL::Full);
@@ -1088,19 +1137,18 @@ protected:
               relatedCallSite, true);
   }
 
-  /**
-   * This method will be called for each incoming edge and can be used to
-   * transfer knowledge from the calling edge to the returning edge, without
-   * affecting the summary edges at the callee.
-   * @param callSite
-   *
-   * @param d4
-   *            Fact stored with the incoming edge, i.e., present at the
-   *            caller side
-   * @param d5
-   *            Fact that originally should be propagated to the caller.
-   * @return Fact that will be propagated to the caller.
-   */
+  /// This method will be called for each incoming edge and can be used to
+  /// transfer knowledge from the calling edge to the returning edge, without
+  /// affecting the summary edges at the callee.
+  /// @param callSite
+  ///
+  /// @param d4
+  ///            Fact stored with the incoming edge, i.e., present at the
+  ///            caller side
+  /// @param d5
+  ///            Fact that originally should be propagated to the caller.
+  /// @return Fact that will be propagated to the caller.
+  ///
   d_t restoreContextOnReturnedFact(n_t callSite, d_t d4, d_t d5) {
     // TODO support LinkedNode and JoinHandlingNode
     //		if (d5 instanceof LinkedNode) {
@@ -1113,66 +1161,59 @@ protected:
     return d5;
   }
 
-  /**
-   * Computes the normal flow function for the given set of start and end
-   * abstractions-
-   * @param flowFunction The normal flow function to compute
-   * @param d1 The abstraction at the method's start node
-   * @param d2 The abstraction at the current node
-   * @return The set of abstractions at the successor node
-   */
+  /// Computes the normal flow function for the given set of start and end
+  /// abstractions-
+  /// @param flowFunction The normal flow function to compute
+  /// @param d1 The abstraction at the method's start node
+  /// @param d2 The abstraction at the current node
+  /// @return The set of abstractions at the successor node
+  ///
   container_type
   computeNormalFlowFunction(const FlowFunctionPtrType &flowFunction, d_t d1,
                             d_t d2) {
     return flowFunction->computeTargets(d2);
   }
 
-  /**
-   * TODO: comment
-   */
   container_type
   computeSummaryFlowFunction(const FlowFunctionPtrType &SummaryFlowFunction,
                              d_t d1, d_t d2) {
     return SummaryFlowFunction->computeTargets(d2);
   }
 
-  /**
-   * Computes the call flow function for the given call-site abstraction
-   * @param callFlowFunction The call flow function to compute
-   * @param d1 The abstraction at the current method's start node.
-   * @param d2 The abstraction at the call site
-   * @return The set of caller-side abstractions at the callee's start node
-   */
+  /// Computes the call flow function for the given call-site abstraction
+  /// @param callFlowFunction The call flow function to compute
+  /// @param d1 The abstraction at the current method's start node.
+  /// @param d2 The abstraction at the call site
+  /// @return The set of caller-side abstractions at the callee's start node
+  ///
   container_type
   computeCallFlowFunction(const FlowFunctionPtrType &callFlowFunction, d_t d1,
                           d_t d2) {
     return callFlowFunction->computeTargets(d2);
   }
 
-  /**
-   * Computes the call-to-return flow function for the given call-site
-   * abstraction
-   * @param callToReturnFlowFunction The call-to-return flow function to
-   * compute
-   * @param d1 The abstraction at the current method's start node.
-   * @param d2 The abstraction at the call site
-   * @return The set of caller-side abstractions at the return site
-   */
+  /// Computes the call-to-return flow function for the given call-site
+  /// abstraction
+  /// @param callToReturnFlowFunction The call-to-return flow function to
+  /// compute
+  /// @param d1 The abstraction at the current method's start node.
+  /// @param d2 The abstraction at the call site
+  /// @return The set of caller-side abstractions at the return site
+  ///
   container_type computeCallToReturnFlowFunction(
       const FlowFunctionPtrType &callToReturnFlowFunction, d_t d1, d_t d2) {
     return callToReturnFlowFunction->computeTargets(d2);
   }
 
-  /**
-   * Computes the return flow function for the given set of caller-side
-   * abstractions.
-   * @param retFunction The return flow function to compute
-   * @param d1 The abstraction at the beginning of the callee
-   * @param d2 The abstraction at the exit node in the callee
-   * @param callSite The call site
-   * @param callerSideDs The abstractions at the call site
-   * @return The set of caller-side abstractions at the return site
-   */
+  /// Computes the return flow function for the given set of caller-side
+  /// abstractions.
+  /// @param retFunction The return flow function to compute
+  /// @param d1 The abstraction at the beginning of the callee
+  /// @param d2 The abstraction at the exit node in the callee
+  /// @param callSite The call site
+  /// @param callerSideDs The abstractions at the call site
+  /// @return The set of caller-side abstractions at the return site
+  ///
   container_type
   computeReturnFlowFunction(const FlowFunctionPtrType &retFunction, d_t d1,
                             d_t d2, n_t callSite,
@@ -1180,23 +1221,22 @@ protected:
     return retFunction->computeTargets(d2);
   }
 
-  /**
-   * Propagates the flow further down the exploded super graph, merging any
-   * edge function that might already have been computed for targetVal at
-   * target.
-   *
-   * @param sourceVal the source value of the propagated summary edge
-   * @param target the target statement
-   * @param targetVal the target value at the target statement
-   * @param f the new edge function computed from (s0,sourceVal) to
-   * (target,targetVal)
-   * @param relatedCallSite for call and return flows the related call
-   * statement, nullptr otherwise (this value is not used within this
-   * implementation but may be useful for subclasses of IDESolver)
-   * @param isUnbalancedReturn true if this edge is propagating an
-   * unbalanced return (this value is not used within this implementation
-   * but may be useful for subclasses of {@link IDESolver})
-   */
+  /// Propagates the flow further down the exploded super graph, merging any
+  /// edge function that might already have been computed for targetVal at
+  /// target.
+  ///
+  /// @param sourceVal the source value of the propagated summary edge
+  /// @param target the target statement
+  /// @param targetVal the target value at the target statement
+  /// @param f the new edge function computed from (s0,sourceVal) to
+  /// (target,targetVal)
+  /// @param relatedCallSite for call and return flows the related call
+  /// statement, nullptr otherwise (this value is not used within this
+  /// implementation but may be useful for subclasses of IDESolver)
+  /// @param isUnbalancedReturn true if this edge is propagating an
+  /// unbalanced return (this value is not used within this implementation
+  /// but may be useful for subclasses of {@link IDESolver})
+  ///
   void
   propagate(d_t sourceVal, n_t target, d_t targetVal,
             const EdgeFunctionPtrType &f,
@@ -1394,72 +1434,69 @@ protected:
     }
   }
 
-  /**
-   * The invariant for computing the number of generated (#gen) and killed
-   * (#kill) facts:
-   *   (1) #Valid facts at the last statement <= #gen - #kill
-   *   (2) #gen >= #kill
-   *
-   * The total number of valid facts can be smaller than the difference of
-   * generated and killed facts, due to set semantics, i.e. a fact can be
-   * generated multiple times but appears only once.
-   *
-   * Zero value is not counted!
-   *
-   * @brief Computes and prints statistics of the analysis run, e.g. number of
-   * generated/killed facts, number of summary-reuses etc.
-   */
+  /// The invariant for computing the number of generated (#gen) and killed
+  /// (#kill) facts:
+  ///   (1) #Valid facts at the last statement <= #gen - #kill
+  ///   (2) #gen >= #kill
+  ///
+  /// The total number of valid facts can be smaller than the difference of
+  /// generated and killed facts, due to set semantics, i.e., a fact can be
+  /// generated multiple times but appears only once.
+  ///
+  /// Zero value is not counted!
+  ///
+  /// @brief Computes and prints statistics of the analysis run, e.g. number of
+  /// generated/killed facts, number of summary-reuses etc.
+  ///
   void computeAndPrintStatistics() {
     PAMM_GET_INSTANCE;
     // Stores all valid facts at return site in caller context; return-site is
     // key
     std::unordered_map<n_t, std::set<d_t>> ValidInCallerContext;
-    std::size_t genFacts = 0, killFacts = 0, intraPathEdges = 0,
-                interPathEdges = 0;
-    /* --- Intra-procedural Path Edges ---
-     * d1 --> d2-Set
-     * Case 1: d1 in d2-Set
-     * Case 2: d1 not in d2-Set, i.e. d1 was killed. d2-Set could be empty.
-     */
+    size_t NumGenFacts = 0;
+    size_t NumKillFacts = 0;
+    size_t NumIntraPathEdges = 0;
+    size_t NumInterPathEdges = 0;
+    // --- Intra-procedural Path Edges ---
+    // d1 --> d2-Set
+    // Case 1: d1 in d2-Set
+    // Case 2: d1 not in d2-Set, i.e., d1 was killed. d2-Set could be empty.
     for (auto cell : computedIntraPathEdges.cellSet()) {
       auto Edge = std::make_pair(cell.getRowKey(), cell.getColumnKey());
       LOG_IF_ENABLE(BOOST_LOG_SEV(lg::get(), DEBUG)
                         << "N1: " << IDEProblem.NtoString(Edge.first);
                     BOOST_LOG_SEV(lg::get(), DEBUG)
                     << "N2: " << IDEProblem.NtoString(Edge.second));
-      for (auto D1ToD2Set : cell.getValue()) {
-        auto D1 = D1ToD2Set.first;
+      for (auto &[D1, D2s] : cell.getValue()) {
         LOG_IF_ENABLE(BOOST_LOG_SEV(lg::get(), DEBUG)
                       << "d1: " << IDEProblem.DtoString(D1));
-        auto D2Set = D1ToD2Set.second;
-        intraPathEdges += D2Set.size();
+        NumIntraPathEdges += D2s.size();
         // Case 1
-        if (D2Set.find(D1) != D2Set.end()) {
-          genFacts += D2Set.size() - 1;
+        if (D2s.find(D1) != D2s.end()) {
+          NumGenFacts += D2s.size() - 1;
         }
         // Case 2
         else {
-          genFacts += D2Set.size();
+          NumGenFacts += D2s.size();
           // We ignore the zero value
           if (!IDEProblem.isZeroValue(D1)) {
-            killFacts++;
+            NumKillFacts++;
           }
         }
         // Store all valid facts after call-to-return flow
-        if (ICF->isCallStmt(Edge.first)) {
-          ValidInCallerContext[Edge.second].insert(D2Set.begin(), D2Set.end());
+        if (ICF->isCallSite(Edge.first)) {
+          ValidInCallerContext[Edge.second].insert(D2s.begin(), D2s.end());
         }
-        LOG_IF_ENABLE([&]() {
-          for (auto D2 : D2Set) {
+        LOG_IF_ENABLE([this](const auto &D2s) {
+          for (auto D2 : D2s) {
             BOOST_LOG_SEV(lg::get(), DEBUG)
                 << "d2: " << IDEProblem.DtoString(D2);
           }
           BOOST_LOG_SEV(lg::get(), DEBUG) << "----";
-        }());
+        }(D2s));
       }
       LOG_IF_ENABLE(BOOST_LOG_SEV(lg::get(), DEBUG) << " ");
     }
-
     // Stores all pairs of (Startpoint, Fact) for which a summary was applied
     std::set<std::pair<n_t, d_t>> ProcessSummaryFacts;
     LOG_IF_ENABLE(BOOST_LOG_SEV(lg::get(), DEBUG)
@@ -1471,31 +1508,28 @@ protected:
                         << "N1: " << IDEProblem.NtoString(Edge.first);
                     BOOST_LOG_SEV(lg::get(), DEBUG)
                     << "N2: " << IDEProblem.NtoString(Edge.second));
-      /* --- Call-flow Path Edges ---
-       * Case 1: d1 --> empty set
-       *   Can be ignored, since killing a fact in the caller context will
-       *   actually happen during  call-to-return.
-       *
-       * Case 2: d1 --> d2-Set
-       *   Every fact d_i != ZeroValue in d2-set will be generated in the
-       * callee context, thus counts as a new fact. Even if d1 is passed as it
-       * is, it will count as a new fact. The reason for this is, that d1 can
-       * be killed in the callee context, but still be valid in the caller
-       * context.
-       *
-       * Special Case: Summary was applied for a particular call
-       *   Process the summary's #gen and #kill.
-       */
-      if (ICF->isCallStmt(Edge.first)) {
-        for (auto D1ToD2Set : cell.getValue()) {
-          auto D1 = D1ToD2Set.first;
+      // --- Call-flow Path Edges ---
+      // Case 1: d1 --> empty set
+      //   Can be ignored, since killing a fact in the caller context will
+      //   actually happen during  call-to-return.
+      //
+      // Case 2: d1 --> d2-Set
+      //   Every fact d_i != ZeroValue in d2-set will be generated in the
+      // callee context, thus counts as a new fact. Even if d1 is passed as it
+      // is, it will count as a new fact. The reason for this is, that d1 can
+      // be killed in the callee context, but still be valid in the caller
+      // context.
+      //
+      // Special Case: Summary was applied for a particular call
+      //   Process the summary's #gen and #kill.
+      if (ICF->isCallSite(Edge.first)) {
+        for (auto &[D1, D2s] : cell.getValue()) {
           LOG_IF_ENABLE(BOOST_LOG_SEV(lg::get(), DEBUG)
                         << "d1: " << IDEProblem.DtoString(D1));
-          auto DSet = D1ToD2Set.second;
-          interPathEdges += DSet.size();
-          for (auto D2 : DSet) {
+          NumInterPathEdges += D2s.size();
+          for (auto D2 : D2s) {
             if (!IDEProblem.isZeroValue(D2)) {
-              genFacts++;
+              NumGenFacts++;
             }
             // Special case
             if (ProcessSummaryFacts.find(std::make_pair(Edge.second, D2)) !=
@@ -1507,12 +1541,12 @@ protected:
                                         SummaryDMultiSet.end());
               // Process summary just as an intra-procedural edge
               if (SummaryDSet.find(D2) != SummaryDSet.end()) {
-                genFacts += SummaryDSet.size() - 1;
+                NumGenFacts += SummaryDSet.size() - 1;
               } else {
-                genFacts += SummaryDSet.size();
+                NumGenFacts += SummaryDSet.size();
                 // We ignore the zero value
                 if (!IDEProblem.isZeroValue(D1)) {
-                  killFacts++;
+                  NumKillFacts++;
                 }
               }
             } else {
@@ -1524,32 +1558,29 @@ protected:
           LOG_IF_ENABLE(BOOST_LOG_SEV(lg::get(), DEBUG) << "----");
         }
       }
-      /* --- Return-flow Path Edges ---
-       * Since every fact passed to the callee was counted as a new fact, we
-       * have to count every fact propagated to the caller as a kill to
-       * satisfy our invariant. Obviously, every fact not propagated to the
-       * caller will count as a kill. If an actual new fact is propagated to
-       * the caller, we have to increase the number of generated facts by one.
-       * Zero value does not count towards generated/killed facts.
-       */
-      if (ICF->isExitStmt(cell.getRowKey())) {
-        for (auto D1ToD2Set : cell.getValue()) {
-          auto D1 = D1ToD2Set.first;
+      // --- Return-flow Path Edges ---
+      // Since every fact passed to the callee was counted as a new fact, we
+      // have to count every fact propagated to the caller as a kill to
+      // satisfy our invariant. Obviously, every fact not propagated to the
+      // caller will count as a kill. If an actual new fact is propagated to
+      // the caller, we have to increase the number of generated facts by one.
+      // Zero value does not count towards generated/killed facts.
+      if (ICF->isExitInst(cell.getRowKey())) {
+        for (auto &[D1, D2s] : cell.getValue()) {
           LOG_IF_ENABLE(BOOST_LOG_SEV(lg::get(), DEBUG)
                         << "d1: " << IDEProblem.DtoString(D1));
-          auto DSet = D1ToD2Set.second;
-          interPathEdges += DSet.size();
+          NumInterPathEdges += D2s.size();
           auto CallerFacts = ValidInCallerContext[Edge.second];
-          for (auto D2 : DSet) {
+          for (auto D2 : D2s) {
             // d2 not valid in caller context
             if (CallerFacts.find(D2) == CallerFacts.end()) {
-              genFacts++;
+              NumGenFacts++;
             }
             LOG_IF_ENABLE(BOOST_LOG_SEV(lg::get(), DEBUG)
                           << "d2: " << IDEProblem.DtoString(D2));
           }
           if (!IDEProblem.isZeroValue(D1)) {
-            killFacts++;
+            NumKillFacts++;
           }
           LOG_IF_ENABLE(BOOST_LOG_SEV(lg::get(), DEBUG) << "----");
         }
@@ -1567,12 +1598,13 @@ protected:
                     << "#Reuse: " << entry.second);
       TotalSummaryReuse += entry.second;
     }
-
-    INC_COUNTER("Gen facts", genFacts, PAMM_SEVERITY_LEVEL::Core);
-    INC_COUNTER("Kill facts", killFacts, PAMM_SEVERITY_LEVEL::Core);
+    INC_COUNTER("Gen facts", NumGenFacts, PAMM_SEVERITY_LEVEL::Core);
+    INC_COUNTER("Kill facts", NumKillFacts, PAMM_SEVERITY_LEVEL::Core);
     INC_COUNTER("Summary-reuse", TotalSummaryReuse, PAMM_SEVERITY_LEVEL::Core);
-    INC_COUNTER("Intra Path Edges", intraPathEdges, PAMM_SEVERITY_LEVEL::Core);
-    INC_COUNTER("Inter Path Edges", interPathEdges, PAMM_SEVERITY_LEVEL::Core);
+    INC_COUNTER("Intra Path Edges", NumIntraPathEdges,
+                PAMM_SEVERITY_LEVEL::Core);
+    INC_COUNTER("Inter Path Edges", NumInterPathEdges,
+                PAMM_SEVERITY_LEVEL::Core);
 
     LOG_IF_ENABLE(BOOST_LOG_SEV(lg::get(), INFO)
                       << "----------------------------------------------";
@@ -1656,7 +1688,7 @@ public:
       DOTNode N2(fnName, n2_label, n2_stmtId);
       // Add control flow node(s) to function subgraph
       FG->stmts.insert(N1);
-      if (ICF->isExitStmt(Edge.second)) {
+      if (ICF->isExitInst(Edge.second)) {
         FG->stmts.insert(N2);
       }
 

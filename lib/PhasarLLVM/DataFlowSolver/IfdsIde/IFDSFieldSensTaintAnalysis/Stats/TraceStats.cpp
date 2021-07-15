@@ -31,7 +31,7 @@ long TraceStats::add(const llvm::Instruction *Instruction, bool IsReturnValue) {
     return 0;
   }
 
-  const auto FunctionName = Function->getName();
+  const auto FunctionName = Function->getName().str();
 
   auto *const FnScope = llvm::cast<llvm::DIScope>(DebugLocFn.getScope());
 
@@ -65,7 +65,7 @@ long TraceStats::add(const llvm::Instruction *Instruction,
     const auto *const BasicBlock = Instruction->getParent();
     const auto BasicBlockName = BasicBlock->getName();
 
-    bool IsReturnBasicBlock = BasicBlockName.compare_lower("return") == 0;
+    bool IsReturnBasicBlock = BasicBlockName.compare("return") == 0;
     if (IsReturnBasicBlock) {
       return 0;
     }
@@ -80,7 +80,7 @@ long TraceStats::add(const llvm::Instruction *Instruction,
     if (const auto *const AllocaInst =
             llvm::dyn_cast<llvm::AllocaInst>(MemLocationFrame)) {
       const auto InstructionName = AllocaInst->getName();
-      bool IsRetVal = InstructionName.compare_lower("retval") == 0;
+      bool IsRetVal = InstructionName.compare("retval") == 0;
 
       if (IsRetVal) {
         return add(Instruction, true);

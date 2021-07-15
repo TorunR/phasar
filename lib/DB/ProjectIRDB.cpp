@@ -10,7 +10,7 @@
 #include <algorithm>
 #include <cassert>
 #include <iostream>
-
+#include <ostream>
 #include <string>
 
 #include "llvm/Bitcode/BitcodeReader.h"
@@ -63,7 +63,8 @@ ProjectIRDB::ProjectIRDB(const std::vector<std::string> &IRFiles,
     : ProjectIRDB(Options | IRDBOptions::OWNS) {
   for (const auto &File : IRFiles) {
     // if we have a file that is already compiled to llvm ir
-    if ((File.find(".ll") != File.npos || File.find(".bc") != File.npos) &&
+    if ((File.find(".ll") != std::string::npos ||
+         File.find(".bc") != std::string::npos) &&
         boost::filesystem::exists(File)) {
       llvm::SMDiagnostic Diag;
       std::unique_ptr<llvm::LLVMContext> C(new llvm::LLVMContext);
@@ -250,6 +251,7 @@ void ProjectIRDB::print() const {
   for (const auto &[File, Module] : Modules) {
     std::cout << "Module: " << File << std::endl;
     llvm::outs() << *Module;
+    llvm::outs().flush();
   }
 }
 
@@ -353,7 +355,7 @@ ProjectIRDB::getModuleDefiningFunction(const std::string &FunctionName) const {
 
 std::string ProjectIRDB::valueToPersistedString(const llvm::Value *V) {
   if (LLVMZeroValue::getInstance()->isLLVMZeroValue(V)) {
-    return LLVMZeroValue::getInstance()->getName();
+    return LLVMZeroValue::getInstance()->getName().str();
   } else if (const auto *I = llvm::dyn_cast<llvm::Instruction>(V)) {
     return I->getFunction()->getName().str() + "." + getMetaDataID(I);
   } else if (const auto *A = llvm::dyn_cast<llvm::Argument>(V)) {

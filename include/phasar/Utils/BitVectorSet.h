@@ -11,6 +11,7 @@
 #define PHASAR_UTILS_BITVECTORSET_H_
 
 #include <algorithm>
+#include <cassert>
 #include <initializer_list>
 
 #include "boost/bimap.hpp"
@@ -258,13 +259,16 @@ public:
   void erase(const T &Data) noexcept {
     auto Search = Position.left.find(Data);
     if (Search != Position.left.end()) {
-      if (!(Bits.size() < Search->second - 1)) {
+      if (Bits.size() > Search->second) {
         Bits[Search->second] = false;
       }
     }
   }
 
-  void clear() noexcept { Bits.reset(); }
+  void clear() noexcept {
+    Bits.clear();
+    Bits.resize(0);
+  }
 
   [[nodiscard]] bool empty() const noexcept { return Bits.none(); }
 

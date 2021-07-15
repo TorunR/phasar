@@ -12,15 +12,22 @@
 
 #include <map>
 #include <memory>
+#include <set>
 #include <string>
 
 #include "phasar/PhasarLLVM/DataFlowSolver/Mono/IntraMonoProblem.h"
 #include "phasar/PhasarLLVM/Domain/AnalysisDomain.h"
+#include "phasar/PhasarLLVM/TypeHierarchy/LLVMTypeHierarchy.h"
+#include "phasar/Utils/LLVMShorthands.h"
 
 namespace psr {
 
+struct IntraMonoProblemPluginDomain : LLVMAnalysisDomainDefault {
+  using mono_container_t = std::set<LLVMAnalysisDomainDefault::d_t>;
+};
+
 class IntraMonoProblemPlugin
-    : public IntraMonoProblem<LLVMAnalysisDomainDefault> {
+    : public IntraMonoProblem<IntraMonoProblemPluginDomain> {
 public:
   IntraMonoProblemPlugin(const ProjectIRDB *IRDB, const LLVMTypeHierarchy *TH,
                          const LLVMBasedCFG *CF, LLVMPointsToInfo *PT,
@@ -28,7 +35,7 @@ public:
       : IntraMonoProblem(IRDB, TH, CF, PT, EntryPoints) {}
 
   void printNode(std::ostream &os, n_t n) const override {
-    os << llvmIRToString(n);
+    os << llvmIRToString((llvm::Value *)n);
   }
   void printDataFlowFact(std::ostream &os, d_t d) const override {
     os << llvmIRToString(d);

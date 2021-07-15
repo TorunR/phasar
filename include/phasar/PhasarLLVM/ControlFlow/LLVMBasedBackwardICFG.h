@@ -21,7 +21,7 @@
 #include "phasar/PhasarLLVM/ControlFlow/ICFG.h"
 #include "phasar/PhasarLLVM/ControlFlow/LLVMBasedBackwardCFG.h"
 #include "phasar/PhasarLLVM/ControlFlow/LLVMBasedICFG.h"
-#include "phasar/Utils/SoundnessFlag.h"
+#include "phasar/Utils/Soundness.h"
 
 namespace llvm {
 class Instruction;
@@ -51,7 +51,7 @@ public:
                          const std::set<std::string> &EntryPoints = {},
                          LLVMTypeHierarchy *TH = nullptr,
                          LLVMPointsToInfo *PT = nullptr,
-                         SoundnessFlag SF = SoundnessFlag::SOUNDY);
+                         Soundness S = Soundness::SOUNDY);
 
   ~LLVMBasedBackwardsICFG() override = default;
 
@@ -74,6 +74,12 @@ public:
 
   std::set<const llvm::Instruction *>
   getReturnSitesOfCallAt(const llvm::Instruction *N) const override;
+
+  [[nodiscard]] std::vector<const llvm::Function *>
+  getGlobalCtors() const override;
+
+  [[nodiscard]] std::vector<const llvm::Function *>
+  getGlobalDtors() const override;
 
   std::set<const llvm::Instruction *> allNonCallStartNodes() const override;
 

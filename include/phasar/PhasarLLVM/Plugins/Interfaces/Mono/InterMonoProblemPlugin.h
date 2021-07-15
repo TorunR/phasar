@@ -12,29 +12,37 @@
 
 #include <map>
 #include <memory>
+#include <set>
 #include <string>
 
 #include "phasar/PhasarLLVM/DataFlowSolver/Mono/InterMonoProblem.h"
 #include "phasar/PhasarLLVM/Domain/AnalysisDomain.h"
+#include "phasar/PhasarLLVM/Pointer/LLVMPointsToInfo.h"
+#include "phasar/PhasarLLVM/TypeHierarchy/LLVMTypeHierarchy.h"
+#include "phasar/Utils/LLVMShorthands.h"
 
 namespace psr {
 
+struct InterMonoProblemPluginDomain : LLVMAnalysisDomainDefault {
+  using mono_container_t = std::set<LLVMAnalysisDomainDefault::d_t>;
+};
+
 class InterMonoProblemPlugin
-    : public InterMonoProblem<LLVMAnalysisDomainDefault> {
+    : public InterMonoProblem<InterMonoProblemPluginDomain> {
 public:
   InterMonoProblemPlugin(const ProjectIRDB *IRDB, const LLVMTypeHierarchy *TH,
                          const LLVMBasedICFG *ICF, LLVMPointsToInfo *PT,
                          std::set<std::string> EntryPoints)
       : InterMonoProblem(IRDB, TH, ICF, PT, EntryPoints) {}
 
-  void printNode(std::ostream &os, n_t n) const override {
-    os << llvmIRToString(n);
+  void printNode(std::ostream &OS, n_t Inst) const override {
+    OS << llvmIRToString((llvm::Value *)Inst);
   }
-  void printDataFlowFact(std::ostream &os, d_t d) const override {
-    os << llvmIRToString(d);
+  void printDataFlowFact(std::ostream &OS, d_t Fact) const override {
+    OS << llvmIRToString(Fact);
   }
-  void printFunction(std::ostream &os, f_t f) const override {
-    os << f->getName().str();
+  void printFunction(std::ostream &OS, f_t Fun) const override {
+    OS << Fun->getName().str();
   }
 };
 

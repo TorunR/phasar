@@ -2,16 +2,13 @@
  * @author Sebastian Roland <seroland86@gmail.com>
  */
 
-#include "phasar/PhasarLLVM/DataFlowSolver/IfdsIde/IFDSFieldSensTaintAnalysis/Utils/DataFlowUtils.h"
-
-#include "phasar/PhasarLLVM/DataFlowSolver/IfdsIde/IFDSFieldSensTaintAnalysis/Utils/Log.h"
-
 #include <algorithm>
 #include <cassert>
 #include <cstdlib>
 #include <ctime>
 #include <fstream>
 #include <iterator>
+#include <memory>
 #include <queue>
 #include <set>
 #include <sstream>
@@ -21,6 +18,8 @@
 #include "llvm/Analysis/PostDominators.h"
 #include "llvm/IR/IntrinsicInst.h"
 
+#include "phasar/PhasarLLVM/DataFlowSolver/IfdsIde/IFDSFieldSensTaintAnalysis/Utils/DataFlowUtils.h"
+#include "phasar/PhasarLLVM/DataFlowSolver/IfdsIde/IFDSFieldSensTaintAnalysis/Utils/Log.h"
 #include "phasar/Utils/LLVMShorthands.h"
 
 using namespace psr;
@@ -467,14 +466,14 @@ std::vector<const llvm::Value *>
 getVaListMemoryLocationSeq(const llvm::Value *Value) {
   if (const auto *const PhiNodeInst = llvm::dyn_cast<llvm::PHINode>(Value)) {
     const auto PhiNodeName = PhiNodeInst->getName();
-    bool IsVarArgAddr = PhiNodeName.contains_lower("vaarg.addr");
+    bool IsVarArgAddr = PhiNodeName.contains("vaarg.addr");
     if (!IsVarArgAddr) {
       return EmptySeq;
     }
 
     for (const auto &Block : PhiNodeInst->blocks()) {
       const auto BlockName = Block->getName();
-      bool IsVarArgInMem = BlockName.contains_lower("vaarg.in_mem");
+      bool IsVarArgInMem = BlockName.contains("vaarg.in_mem");
       if (!IsVarArgInMem) {
         continue;
       }
@@ -781,7 +780,7 @@ static std::vector<llvm::BasicBlock *> getPostDominators(
     return {CurrentBasicBlock};
   }
 
-  for (auto *const PostDomTreeChild : PostDomTreeNode->getChildren()) {
+  for (auto *const PostDomTreeChild : PostDomTreeNode->children()) {
     auto ChildNodes = getPostDominators(PostDomTreeChild, StartBasicBlock);
     if (!ChildNodes.empty()) {
       ChildNodes.push_back(CurrentBasicBlock);

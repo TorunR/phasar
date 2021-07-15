@@ -15,13 +15,15 @@
  */
 
 #include <cstdlib>
+#include <llvm/IR/Instruction.h>
 
 #include "boost/algorithm/string/trim.hpp"
 
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
-#include "llvm/IR/CallSite.h"
+#include "llvm/IR/AbstractCallSite.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
@@ -31,7 +33,6 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "phasar/Config/Configuration.h"
-#include "phasar/PhasarLLVM/DataFlowSolver/IfdsIde/LLVMZeroValue.h"
 #include "phasar/Utils/LLVMShorthands.h"
 #include "phasar/Utils/Utilities.h"
 
@@ -57,18 +58,48 @@ bool isAllocaInstOrHeapAllocaFunction(const llvm::Value *V) noexcept {
     if (llvm::isa<llvm::AllocaInst>(V)) {
       return true;
     } else if (llvm::isa<llvm::CallInst>(V) || llvm::isa<llvm::InvokeInst>(V)) {
-      llvm::ImmutableCallSite CS(V);
-      return CS.getCalledFunction() != nullptr &&
+      const llvm::CallBase *CallSite = llvm::cast<llvm::CallBase>(V);
+      return CallSite->getCalledFunction() != nullptr &&
              HeapAllocationFunctions.count(
-                 CS.getCalledFunction()->getName().str());
+                 CallSite->getCalledFunction()->getName().str());
     }
     return false;
   }
   return false;
 }
 
-bool matchesSignature(const llvm::Function *F,
-                      const llvm::FunctionType *FType) {
+// For C-style polymorphism we need to check whether a callee candidate would
+// be able to sanely access the formal argument.
+bool isTypeMatchForFunctionArgument(llvm::Type *Actual, llvm::Type *Formal) {
+  // First check for trivial type equality
+  if (Actual == Formal) {
+    return true;
+  }
+  // Trivial non-equality, e.g. PointerType and IntegerType
+  if (Actual->getTypeID() != Formal->getTypeID()) {
+    return false;
+  }
+  // For PointerType delegate into its element type
+  if (llvm::isa<llvm::PointerType>(Actual)) {
+    // If formal argument is void *, we can pass anything.
+    if (Formal->getPointerElementType()->isIntegerTy(8)) {
+      return true;
+    }
+    return isTypeMatchForFunctionArgument(Actual->getPointerElementType(),
+                                          Formal->getPointerElementType());
+  }
+  // For structs, Formal needs to be somehow contained in Actual.
+  if (llvm::isa<llvm::StructType>(Actual)) {
+    // Well, we could do sanity checks here, but if the analysed code is insane
+    // we would miss callees, so we don't do that.
+    return true;
+  }
+  // Sound fallback if we didn't match until here.
+  return false;
+}
+
+bool matchesSignature(const llvm::Function *F, const llvm::FunctionType *FType,
+                      bool ExactMatch) {
   // FType->print(llvm::outs());
   if (F == nullptr || FType == nullptr) {
     return false;
@@ -77,7 +108,11 @@ bool matchesSignature(const llvm::Function *F,
       F->getReturnType() == FType->getReturnType()) {
     unsigned Idx = 0;
     for (const auto &Arg : F->args()) {
-      if (Arg.getType() != FType->getParamType(Idx)) {
+      bool TypeMissMatch =
+          ExactMatch ? Arg.getType() != FType->getParamType(Idx)
+                     : !isTypeMatchForFunctionArgument(FType->getParamType(Idx),
+                                                       Arg.getType());
+      if (TypeMissMatch) {
         return false;
       }
       ++Idx;
@@ -105,15 +140,17 @@ bool matchesSignature(const llvm::FunctionType *FType1,
 }
 
 static llvm::ModuleSlotTracker &getModuleSlotTrackerFor(const llvm::Value *V) {
-  static std::unordered_map<const llvm::Module *,
-                            std::unique_ptr<llvm::ModuleSlotTracker>>
+  static llvm::SmallDenseMap<const llvm::Module *,
+                             std::unique_ptr<llvm::ModuleSlotTracker>, 2>
       ModuleToSlotTracker;
   const auto *M = getModuleFromVal(V);
-  if (ModuleToSlotTracker.count(M) == 0) {
-    ModuleToSlotTracker.insert_or_assign(
-        M, std::make_unique<llvm::ModuleSlotTracker>(M));
+
+  auto &ret = ModuleToSlotTracker[M];
+  if (!ret) {
+    ret = std::make_unique<llvm::ModuleSlotTracker>(M);
   }
-  return *ModuleToSlotTracker[M];
+
+  return *ret;
 }
 
 std::string llvmIRToString(const llvm::Value *V) {
@@ -129,7 +166,12 @@ std::string llvmIRToString(const llvm::Value *V) {
 std::string llvmIRToShortString(const llvm::Value *V) {
   std::string IRBuffer;
   llvm::raw_string_ostream RSO(IRBuffer);
-  V->printAsOperand(RSO, true, getModuleSlotTrackerFor(V));
+  if (const auto *I = llvm::dyn_cast<llvm::Instruction>(V);
+      I && !I->getType()->isVoidTy()) {
+    V->printAsOperand(RSO, true, getModuleSlotTrackerFor(V));
+  } else {
+    V->print(RSO, getModuleSlotTrackerFor(V));
+  }
   RSO << " | ID: " << getMetaDataID(V);
   RSO.flush();
   boost::trim_left(IRBuffer);
@@ -314,6 +356,29 @@ const llvm::StoreInst *getNthStoreInstruction(const llvm::Function *F,
     }
   }
   return nullptr;
+}
+
+bool isVarAnnotationIntrinsic(const llvm::Function *F) {
+  static const llvm::StringRef kVarAnnotationName("llvm.var.annotation");
+  return F->getName() == kVarAnnotationName;
+}
+
+const llvm::StringRef
+getVarAnnotationIntrinsicName(const llvm::CallInst *CallInst) {
+  const int kPointerGlobalStringIdx = 1;
+  llvm::ConstantExpr *ce = llvm::cast<llvm::ConstantExpr>(
+      CallInst->getOperand(kPointerGlobalStringIdx));
+  assert(ce != nullptr);
+  assert(ce->getOpcode() == llvm::Instruction::GetElementPtr);
+  assert(llvm::dyn_cast<llvm::GlobalVariable>(ce->getOperand(0)) != nullptr);
+  llvm::GlobalVariable *annoteStr =
+      llvm::dyn_cast<llvm::GlobalVariable>(ce->getOperand(0));
+  assert(llvm::dyn_cast<llvm::ConstantDataSequential>(
+      annoteStr->getInitializer()));
+  llvm::ConstantDataSequential *data =
+      llvm::dyn_cast<llvm::ConstantDataSequential>(annoteStr->getInitializer());
+  assert(data->isString());
+  return data->getAsString();
 }
 
 } // namespace psr

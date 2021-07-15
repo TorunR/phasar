@@ -31,14 +31,14 @@ BranchSwitchInstFlowFunction::computeTargetsExt(ExtendedValue &Fact) {
 
     if (IsConditionTainted) {
       const auto *const StartBasicBlock = currentInst->getParent();
-      const auto StartBasicBlockLabel = StartBasicBlock->getName();
+      const auto StartBasicBlockLabel = StartBasicBlock->getName().str();
 
       LOG_DEBUG("Searching end of block label for: " << StartBasicBlockLabel);
 
       const auto *const EndBasicBlock =
           DataFlowUtils::getEndOfTaintedBlock(StartBasicBlock);
       const auto EndBasicBlockLabel =
-          EndBasicBlock ? EndBasicBlock->getName() : "";
+          EndBasicBlock ? EndBasicBlock->getName().str() : "";
 
       LOG_DEBUG("End of block label: " << EndBasicBlockLabel);
 
