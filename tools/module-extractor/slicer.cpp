@@ -387,10 +387,10 @@ std::string createSlice(string target, const set<string> &entrypoints,
   IFDSSolver solver(slicer);
   solver.solve();
   ofstream out;
-  out.open("out/graph.dot");
+//  out.open("out/graph.dot");
   //  solver.emitESGAsDot(out);
   out.close();
-  out.open("out/results.txt");
+//  out.open("out/results.txt");
   //  solver.dumpResults(out);
   out.close();
   cout << "\n";
@@ -451,28 +451,6 @@ int main(int argc, const char **argv) {
       std::chrono::steady_clock::now();
   createSlice(target, entrypoints, terms);
   std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-//      compare_slice(
-//          "/home/torun/Volume/Arbeit/Arbeit/code/slicing-eval/memcached-stats/stats.c",
-//          "/media/Volume/Arbeit/Arbeit/code/phasar/out/command.c");
-  compare_slice("/home/torun/Volume/Arbeit/Arbeit/code/slicing-eval/"
-                "memcached-command/command.c",
-                "/media/Volume/Arbeit/Arbeit/code/phasar/out/command.c");
-//        compare_slice(
-//        "/home/torun/Volume/Arbeit/Arbeit/code/slicing-eval/smaller/the_silver_searcher/src/ignore.c",
-//            "/media/Volume/Arbeit/Arbeit/code/phasar/out/ignore.c");
-//    compare_slice(
-//        "/media/Volume/Arbeit/Arbeit/code/slicing-eval/smaller/parson/parse.c",
-//        "/media/Volume/Arbeit/Arbeit/code/phasar/out/parson.c");
-//      compare_slice(
-//          "/media/Volume/Arbeit/Arbeit/code/slicing-eval/smaller/parson/serialize.c",
-//          "/media/Volume/Arbeit/Arbeit/code/phasar/out/parson.c");
-//        compare_slice("/media/Volume/Arbeit/Arbeit/code/slicing-eval/smaller/inotify-tools/libinotifytools/src/stats.c",
-//                      "/media/Volume/Arbeit/Arbeit/code/phasar/out/inotifytools.c");
-//        compare_slice("/media/Volume/Arbeit/Arbeit/code/slicing-eval/smaller/fping/src/stats.c",
-//                      "/media/Volume/Arbeit/Arbeit/code/phasar/out/fping.c");
-//        compare_slice(
-//          "/media/Volume/Arbeit/Arbeit/code/slicing-eval/redis/src/cluster_manager.c",
-//          "/media/Volume/Arbeit/Arbeit/code/phasar/out/command.c");
   std::cout << "Time difference = "
             << std::chrono::duration_cast<std::chrono::microseconds>(end -
                                                                      begin)
@@ -492,10 +470,7 @@ int main(int argc, const char **argv) {
       << "[m]" << std::endl;
   return 0;
 }
-// TODO:
-// Recursive Control dependency backward - branch conditions
-// branch conditions forward -> include block
-// Coll Declarations
+
 
 std::set<SlicerFact> NormalFlowFunction::computeTargets(SlicerFact source) {
   set<SlicerFact> facts;
@@ -677,51 +652,6 @@ RetFlowFunction<ICFG_T>::computeTargets(SlicerFact source) {
   return facts;
 }
 
-void compare_slice(string original, string module) {
-  set<string> original_lines;
-  set<string> module_lines;
-  vector<string> intersection;
-  vector<string> missing;
-  vector<string> additional;
-  {
-    std::ifstream in(original);
-    std::string line;
-    int line_nr = 1;
-    while (std::getline(in, line)) {
-      original_lines.insert(line);
-    }
-  }
-  {
-    std::ifstream in(module);
-    std::string line;
-    while (std::getline(in, line)) {
-      module_lines.insert(line);
-    }
-  }
-  set_intersection(original_lines.begin(), original_lines.end(),
-                   module_lines.begin(), module_lines.end(),
-                   std::inserter(intersection, intersection.begin()));
-  set_difference(original_lines.begin(), original_lines.end(),
-                 module_lines.begin(), module_lines.end(),
-                 std::inserter(missing, missing.begin()));
-  set_difference(module_lines.begin(), module_lines.end(),
-                 original_lines.begin(), original_lines.end(),
-
-                 std::inserter(additional, additional.begin()));
-
-  for (auto m : missing) {
-    cout << m << "\n";
-  }
-  cout << "====================================\n";
-  for (auto a : additional) {
-    cout << a << "\n";
-  }
-  cout << "Original Size is:\t" << original_lines.size() << endl;
-  cout << "Intersection Size is:\t" << intersection.size() << endl;
-  cout << "Additional Size is:\t" << additional.size() << endl;
-  cout << "Missing Size is:\t" << missing.size() << endl;
-  cout << "\n\n\n";
-}
 class RewriteSourceVisitor
     : public clang::RecursiveASTVisitor<RewriteSourceVisitor> {
 public:

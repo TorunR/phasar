@@ -258,7 +258,53 @@ private:
   [[maybe_unused]] set<const Function *> callees;
 };
 
-void compare_slice(string original, string module);
+void compare_slice(string original, string module)
+  {
+    set<string> original_lines;
+    set<string> module_lines;
+    vector<string> intersection;
+    vector<string> missing;
+    vector<string> additional;
+    {
+      std::ifstream in(original);
+      std::string line;
+      int line_nr = 1;
+      while (std::getline(in, line)) {
+        original_lines.insert(line);
+      }
+    }
+    {
+      std::ifstream in(module);
+      std::string line;
+      while (std::getline(in, line)) {
+        module_lines.insert(line);
+      }
+    }
+    set_intersection(original_lines.begin(), original_lines.end(),
+                     module_lines.begin(), module_lines.end(),
+                     std::inserter(intersection, intersection.begin()));
+    set_difference(original_lines.begin(), original_lines.end(),
+                   module_lines.begin(), module_lines.end(),
+                   std::inserter(missing, missing.begin()));
+    set_difference(module_lines.begin(), module_lines.end(),
+                   original_lines.begin(), original_lines.end(),
+
+                   std::inserter(additional, additional.begin()));
+
+    for (auto m : missing) {
+      cout << m << "\n";
+    }
+    cout << "====================================\n";
+    for (auto a : additional) {
+      cout << a << "\n";
+    }
+    cout << "Original Size is:\t" << original_lines.size() << endl;
+    cout << "Intersection Size is:\t" << intersection.size() << endl;
+    cout << "Additional Size is:\t" << additional.size() << endl;
+    cout << "Missing Size is:\t" << missing.size() << endl;
+    cout << "\n\n\n";
+
+}
 
 shared_ptr<set<unsigned int>> add_block(std::string file, std::set<unsigned int> *target_lines);
 #endif // PHASAR_SLICER_H
