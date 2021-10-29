@@ -46,9 +46,13 @@ fi
 echo "Building LLVM..."
 cd ${build_dir}/llvm-project/
 git checkout ${llvm_release}
+# https://github.com/llvm/llvm-project/commit/68d5235cb58f988c71b403334cd9482d663841ab Fixes build for new linux kernels
+git cherry-pick -n 68d5235cb58f988c71b403334cd9482d663841ab
+# https://reviews.llvm.org/D89450 Fixes build with gcc 11
+git cherry-pick -n b498303066a63a203d24f739b2d2e0e56dca70d1
 mkdir -p build
 cd build
-cmake -G "Ninja" -DLLVM_ENABLE_PROJECTS='clang;clang-tools-extra;libcxx;libcxxabi;libunwind;lld;compiler-rt;debuginfo-tests' -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_CXX1Y=ON -DLLVM_ENABLE_EH=ON -DLLVM_ENABLE_RTTI=ON -DBUILD_SHARED_LIBS=ON -DLLVM_BUILD_EXAMPLES=Off -DLLVM_INCLUDE_EXAMPLES=Off -DLLVM_BUILD_TESTS=Off -DLLVM_INCLUDE_TESTS=Off -DPYTHON_EXECUTABLE=`which python3` ../llvm
+cmake -G "Ninja" -DLLVM_ENABLE_PROJECTS='clang;clang-tools-extra;libcxx;libcxxabi;libunwind;lld;compiler-rt;debuginfo-tests' -DCMAKE_BUILD_TYPE=Release -DLLVM_PARALLEL_LINK_JOBS=1 -DLLVM_ENABLE_CXX1Y=ON -DLLVM_ENABLE_EH=ON -DLLVM_ENABLE_RTTI=ON -DBUILD_SHARED_LIBS=ON -DLLVM_BUILD_EXAMPLES=Off -DLLVM_INCLUDE_EXAMPLES=Off -DLLVM_BUILD_TESTS=Off -DLLVM_INCLUDE_TESTS=Off -DPYTHON_EXECUTABLE=`which python3` ../llvm
 cmake --build . -j${num_cores}
 
 echo "Installing LLVM to ${dest_dir}"
