@@ -129,6 +129,7 @@ CMakeCache.txt
 !cmake/*.cmake
 *.pc
 Makefile
+!targets/*/Makefile
 !test/*/Makefile
 
 # Unit test output
@@ -144,3 +145,6 @@ unittests/Utils/PAMMTest
 cmake-build*/*
 
 out
+targets/parson/test
+targets/parson/testcpp
+targets/mini/test
