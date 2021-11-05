@@ -1,6 +1,9 @@
 #include "slicer.h"
+#include "back_mapper.h"
+
 #include <llvm/IR/IntrinsicInst.h>
 #include <sys/resource.h>
+
 
 struct SliceComparator {
   template <typename T>
@@ -147,7 +150,7 @@ void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
   for (auto *const module : DB.getAllModules()) {
     for (auto &function : module->functions()) {
       auto fun_name = function.getName();
-      llvm::dbgs() << "\n\n\n" << fun_name << "\n\n\n";
+      //  llvm::dbgs() << "\n\n\n" << fun_name << "\n\n\n";
       bool isUsed = false;
       for (auto &bb : function) {
         for (const auto &i : bb) {
@@ -231,11 +234,11 @@ void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
       }
     }
   }
-  cout << "\n";
-  llvm::dbgs() << "\n"
-               << "\n"
-               << "\n"
-               << "\n";
+  //  cout << "\n";
+  //  llvm::dbgs() << "\n"
+  //               << "\n"
+  //               << "\n"
+  //               << "\n";
   map<std::string, set<unsigned int>> file_lines;
   for (auto &p : slice_instruction) {
     llvm::dbgs() << "F:\t" << p.first->getName() << "\t" << p.second.size()
@@ -247,6 +250,7 @@ void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
     for (const auto &s : p.second) {
       if (first) {
         auto line = psr::getLineFromIR(p.first);
+        // llvm::dbgs() << "TEst jr\n";
         llvm::dbgs() << psr::getSrcCodeFromIR(p.first) << "\t" << line << "\n";
         auto end_line = psr::getFunctionHeaderLines(p.first);
         for (unsigned int l = line; l <= end_line; ++l) {
@@ -269,7 +273,7 @@ void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
         auto line = psr::getLineFromIR(s);
         auto src = psr::getSrcCodeFromIR(s);
 
-        llvm::dbgs() << *s << "\t" << src << "\t" << line << "\n";
+        // llvm::dbgs() << *s << "\t" << src << "\t" << line << "\n";
         file_lines[file].insert(line);
         if (auto *inst = dyn_cast<Instruction>(s)) {
           for (unsigned int i = 0; i < inst->getNumOperands(); ++i) {
@@ -386,13 +390,13 @@ std::string createSlice(string target, const set<string> &entrypoints,
                                     entrypoints);
   IFDSSolver solver(slicer);
   solver.solve();
-  ofstream out;
-//  out.open("out/graph.dot");
+  // ofstream out;
+  //  out.open("out/graph.dot");
   //  solver.emitESGAsDot(out);
-  out.close();
-//  out.open("out/results.txt");
+  // out.close();
+  //  out.open("out/results.txt");
   //  solver.dumpResults(out);
-  out.close();
+  // out.close();
   cout << "\n";
   process_results(DB, solver, cg, outPath);
   return "";
@@ -635,104 +639,4 @@ RetFlowFunction<ICFG_T>::computeTargets(SlicerFact source) {
   return facts;
 }
 
-class RewriteSourceVisitor
-    : public clang::RecursiveASTVisitor<RewriteSourceVisitor> {
-public:
-  RewriteSourceVisitor(clang::ASTContext &context,
-                       std::set<unsigned int> *target_lines,
-                       const shared_ptr<std::set<unsigned int>> &resultingLines)
-      : context(context), target_lines(target_lines),
-        resulting_lines(resultingLines), candidate_lines() {}
 
-  [[maybe_unused]] virtual bool VisitStmt(clang::Stmt *S) {
-    auto es =
-        context.getSourceManager().getExpansionLineNumber(S->getBeginLoc());
-    auto es4 =
-        context.getSourceManager().getExpansionLineNumber(S->getEndLoc());
-    if (es == es4 && target_lines->find(es) != target_lines->end()) {
-      for (auto &l : candidate_lines) {
-        resulting_lines->insert(l);
-      }
-    }
-    return true;
-  }
-
-  [[maybe_unused]] virtual bool VisitDefaultStmt(clang::DefaultStmt *S) {
-    auto line =
-        context.getSourceManager().getExpansionLineNumber(S->getBeginLoc());
-    candidate_lines.insert(line);
-    return true;
-  }
-
-  bool VisitCaseStmt(clang::CaseStmt *S) {
-    auto line =
-        context.getSourceManager().getExpansionLineNumber(S->getBeginLoc());
-    candidate_lines.insert(line);
-    return true;
-  }
-
-  virtual bool VisitBreakStmt(clang::BreakStmt *S) {
-    candidate_lines.clear();
-    return true;
-  }
-
-private:
-  clang::ASTContext &context;
-  std::set<unsigned int> *target_lines;
-  shared_ptr<std::set<unsigned int>> resulting_lines;
-  std::set<unsigned int> candidate_lines;
-};
-
-class RewriteSourceConsumer : public clang::ASTConsumer {
-public:
-  RewriteSourceConsumer(
-      std::set<unsigned int> *target_lines,
-      const shared_ptr<std::set<unsigned int>> &resultingLines)
-      : target_lines(target_lines), resulting_lines(resultingLines) {}
-  virtual void HandleTranslationUnit(clang::ASTContext &Context) {
-    // Traversing the translation unit decl via a RecursiveASTVisitor
-    // will visit all nodes in the AST.
-    //    llvm::dbgs << Context.getTranslationUnitDecl();
-    RewriteSourceVisitor Visitor(Context, target_lines, resulting_lines);
-    Visitor.TraverseDecl(Context.getTranslationUnitDecl());
-  }
-
-private:
-  // A RecursiveASTVisitor implementation.
-
-  std::set<unsigned int> *target_lines;
-  shared_ptr<std::set<unsigned int>> resulting_lines;
-};
-class RewriteSourceAction
-//    : public clang::ASTFrontendAction
-{
-
-public:
-  RewriteSourceAction(std::set<unsigned int> *target_lines,
-                      const shared_ptr<std::set<unsigned int>> &resultingLines)
-      : target_lines(target_lines), resulting_lines(resultingLines) {}
-
-  std::unique_ptr<clang::ASTConsumer> newASTConsumer() {
-    return std::unique_ptr<clang::ASTConsumer>(
-        new RewriteSourceConsumer(target_lines, resulting_lines));
-  }
-
-private:
-  std::set<unsigned int> *target_lines;
-  shared_ptr<std::set<unsigned int>> resulting_lines;
-};
-
-shared_ptr<std::set<unsigned int>>
-add_block(std::string file, std::set<unsigned int> *target_lines) {
-  string err = "ERROR_MY";
-  auto db = clang::tooling::CompilationDatabase::autoDetectFromDirectory(
-      boost::filesystem::path(file).parent_path().string(), err);
-  std::vector<std::string> Sources;
-  Sources.push_back(file);
-  clang::tooling::ClangTool Tool(*db, Sources);
-  auto res = make_shared<std::set<unsigned int>>();
-  Tool.run(clang::tooling::newFrontendActionFactory<RewriteSourceAction>(
-               new RewriteSourceAction(target_lines, res))
-               .get());
-  return res;
-}

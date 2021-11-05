@@ -4,10 +4,7 @@
 #include <boost/filesystem/operations.hpp>
 #include <nlohmann/json.hpp>
 
-#include <clang/AST/RecursiveASTVisitor.h>
-#include <clang/Frontend/FrontendActions.h>
-#include <clang/Tooling/CompilationDatabase.h>
-#include <clang/Tooling/Tooling.h>
+
 
 #include <llvm/ADT/StringRef.h>
 #include <llvm/Analysis/PostDominators.h>
@@ -305,6 +302,4 @@ void compare_slice(string original, string module)
     cout << "\n\n\n";
 
 }
-
-shared_ptr<set<unsigned int>> add_block(std::string file, std::set<unsigned int> *target_lines);
 #endif // PHASAR_SLICER_H

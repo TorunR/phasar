@@ -2,11 +2,14 @@
 if (PHASAR_IN_TREE)
     add_phasar_executable(slicer
             tools/module-extractor/slicer.cpp
+            tools/module-extractor/back_mapper.cpp
+            tools/module-extractor/back_mapper.h
             )
 else ()
     add_executable(slicer
             ../module-extractor/slicer.cpp
-            )
+            ../module-extractor/back_mapper.cpp
+            ../module-extractor/back_mapper.h)
 endif ()
 
 if (PHASAR_IN_TREE)
