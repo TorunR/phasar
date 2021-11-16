@@ -4,12 +4,28 @@ if (PHASAR_IN_TREE)
             tools/module-extractor/slicer.cpp
             tools/module-extractor/back_mapper.cpp
             tools/module-extractor/back_mapper.h
+            tools/module-extractor/printer.cpp
+            tools/module-extractor/printer.h
+            tools/module-extractor/source_utils.h
+            tools/module-extractor/SelectiveDeclPrinter.cpp
+            tools/module-extractor/SelectiveDeclPrinter.h
+            tools/module-extractor/SelectiveStmtPrinter.cpp
+            tools/module-extractor/SelectiveStmtPrinter.h
             )
 else ()
     add_executable(slicer
             ../module-extractor/slicer.cpp
             ../module-extractor/back_mapper.cpp
-            ../module-extractor/back_mapper.h)
+            ../module-extractor/back_mapper.h
+            # ../module-extractor/StmtPrinter.cpp
+            ../module-extractor/source_utils.h
+            ../module-extractor/printer.cpp
+            ../module-extractor/printer.h
+            ../module-extractor/SelectiveDeclPrinter.cpp
+            ../module-extractor/SelectiveDeclPrinter.h
+            ../module-extractor/SelectiveStmtPrinter.cpp
+            ../module-extractor/SelectiveStmtPrinter.h
+            )
 endif ()
 
 if (PHASAR_IN_TREE)
@@ -46,6 +62,7 @@ target_link_libraries(slicer
         ${CMAKE_DL_LIBS}
         ${CMAKE_THREAD_LIBS_INIT}
         ${CLANG_LIBRARY}
+        LLVMFrontendOpenMP
         )
 
 

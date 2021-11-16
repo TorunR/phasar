@@ -1,10 +1,13 @@
-#include <stdio.h>
 
 
 
-int calc(int p) {
-  p++;
-  return p;
+
+int calc(int pp) // {
+{
+  pp++;
+  return (pp  + 1)  /**/;
+
+
 }
 
 int main(void) {

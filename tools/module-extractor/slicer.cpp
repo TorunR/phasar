@@ -4,7 +4,6 @@
 #include <llvm/IR/IntrinsicInst.h>
 #include <sys/resource.h>
 
-
 struct SliceComparator {
   template <typename T>
   bool operator()(const tuple<string, Location, T> &l,
@@ -102,7 +101,8 @@ private:
   const std::set<string> &entrypoints;
 };
 
-void copy_files(map<string, set<unsigned int>> &file_lines, string outPath) {
+void copy_files(map<string, set<unsigned int>> &file_lines,
+                map<std::string, std::string> &file_slices, string outPath) {
   for (const auto &file : file_lines) {
     std::ifstream in(file.first);
     std::ofstream out(
@@ -119,6 +119,15 @@ void copy_files(map<string, set<unsigned int>> &file_lines, string outPath) {
     }
     out.close();
   }
+  for (const auto &file : file_slices) {
+    std::string outname =
+        "out/" + file.first.substr(file.first.find_last_of("/"), string::npos) +
+        ".slice";
+    // llvm::errs() << outname;
+    std::ofstream out(outname, std::ios_base::out | std::ios_base::trunc);
+    out << file.second << endl;
+  }
+
   if (true) {
     std::ofstream out("out/" + outPath + ".c");
     for (const auto &file : file_lines) {
@@ -145,6 +154,7 @@ void copy_files(map<string, set<unsigned int>> &file_lines, string outPath) {
 template <typename AnalysisDomainTy>
 void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
                      LLVMBasedBackwardsICFG &cg, string outPath) {
+  map<string, string> file_slices;
   map<const Function *, set<const llvm::Value *>> slice_instruction;
   llvm::dbgs() << "SOLVING DONE\n";
   for (auto *const module : DB.getAllModules()) {
@@ -251,7 +261,8 @@ void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
       if (first) {
         auto line = psr::getLineFromIR(p.first);
         // llvm::dbgs() << "TEst jr\n";
-        llvm::dbgs() << psr::getSrcCodeFromIR(p.first) << "\t" << line << "\n";
+        // llvm::dbgs() << psr::getSrcCodeFromIR(p.first) << "\t" << line <<
+        // "\n";
         auto end_line = psr::getFunctionHeaderLines(p.first);
         for (unsigned int l = line; l <= end_line; ++l) {
           file_lines[file].insert(l);
@@ -287,6 +298,8 @@ void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
             if (auto *scope =
                     dyn_cast<DILexicalBlock>(inst->getDebugLoc().getScope())) {
               block_lines.insert(line);
+              // TODO jr
+              file_lines[file].insert(line);
               file_lines[file].insert(scope->getLine());
             }
           }
@@ -304,16 +317,24 @@ void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
         }
       }
     }
-    auto lines = add_block(file, &block_lines);
-    for (auto line : *lines) {
-      file_lines[file].insert(line);
-    }
+    //    auto lines = add_block(file, &block_lines);
+    //    for (auto line : *lines) {
+    //      file_lines[file].insert(line);
+    //    }
+    // TODO jr
+    // std::string slices = add_block(file, &file_lines[file]);
+    // file_slices.emplace(file, slices);
   }
-  copy_files(file_lines, outPath);
+  for (const auto &f : file_lines) {
+    std::string slices = add_block(f.first, &f.second);
+    file_slices.emplace(f.first, slices);
+  }
+
+  copy_files(file_lines, file_slices, outPath);
 }
 
 std::string createSlice(string target, const set<string> &entrypoints,
-                        const vector<Term> &terms,string outPath) {
+                        const vector<Term> &terms, string outPath) {
   ProjectIRDB DB({std::move(target)}, IRDBOptions::WPA);
   initializeLogger(false);
   //    initializeLogger(true);
@@ -421,7 +442,7 @@ int main(int argc, const char **argv) {
     // TODO USAGE
     return -1;
   }
-//  std::cout << "Current path is " << bofs::current_path() << '\n';
+  //  std::cout << "Current path is " << bofs::current_path() << '\n';
   const auto target = argv[1];
   std::ifstream in(argv[2]);
   json j;
@@ -435,7 +456,7 @@ int main(int argc, const char **argv) {
   }
   std::chrono::steady_clock::time_point begin =
       std::chrono::steady_clock::now();
-  createSlice(target, entrypoints, terms,outPath);
+  createSlice(target, entrypoints, terms, outPath);
   std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
   std::cout << "Time difference = "
             << std::chrono::duration_cast<std::chrono::microseconds>(end -
@@ -457,7 +478,6 @@ int main(int argc, const char **argv) {
   std::cout << "Extracted code is in out/" + outPath + ".c" << std::endl;
   return 0;
 }
-
 
 std::set<SlicerFact> NormalFlowFunction::computeTargets(SlicerFact source) {
   set<SlicerFact> facts;
@@ -638,5 +658,3 @@ RetFlowFunction<ICFG_T>::computeTargets(SlicerFact source) {
 #endif
   return facts;
 }
-
-
