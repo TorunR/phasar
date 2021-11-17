@@ -19,6 +19,7 @@
 #include "SelectiveStmtPrinter.h"
 #include "source_utils.h"
 
+#include <cstring>
 #include <type_traits>
 
 #include <clang/AST/ASTContext.h>
@@ -47,17 +48,18 @@ class DeclPrinterFiltering : public DeclVisitor<DeclPrinterFiltering> {
 public:
 #define PTR(CLASS) typename std::add_pointer<CLASS>::type
 #define DISPATCH(NAME, CLASS)                                                  \
-  return static_cast<DeclPrinterFiltering *>(this)->Visit##NAME(               \
+  static_cast<DeclPrinterFiltering *>(this)->Visit##NAME(                      \
       static_cast<PTR(CLASS)>(D))
 
-  void Visit(PTR(Decl) D) {
+  bool Visit(PTR(Decl) D) {
     if (!utils::shouldBeSliced(D, Context.getSourceManager(), lines)) {
-      return;
+      return false;
     }
     switch (D->getKind()) {
 #define DECL(DERIVED, BASE)                                                    \
   case Decl::DERIVED:                                                          \
-    DISPATCH(DERIVED##Decl, DERIVED##Decl);
+    DISPATCH(DERIVED##Decl, DERIVED##Decl);                                    \
+    return true;
 #define ABSTRACT_DECL(DECL)
 #include "clang/AST/DeclNodes.inc"
     }
@@ -183,26 +185,25 @@ public:
 } // namespace
 
 namespace selective_printer {
-void print(const Decl *decl, const std::set<unsigned int> &lines,
+bool print(const Decl *decl, const std::set<unsigned int> &lines,
            raw_ostream &Out, const PrintingPolicy &Policy, unsigned Indentation,
            bool PrintInstantiation) {
   DeclPrinterFiltering Printer(lines, Out, Policy, decl->getASTContext(),
                                Indentation, PrintInstantiation);
-  Printer.Visit(const_cast<Decl *>(decl));
+  return Printer.Visit(const_cast<Decl *>(decl));
 }
 
-void print(const Decl *decl, const std::set<unsigned int> &lines,
+bool print(const Decl *decl, const std::set<unsigned int> &lines,
            raw_ostream &Out, unsigned Indentation, bool PrintInstantiation) {
-  print(decl, lines, Out, decl->getASTContext().getPrintingPolicy(),
-        Indentation, PrintInstantiation);
+  return print(decl, lines, Out, decl->getASTContext().getPrintingPolicy(),
+               Indentation, PrintInstantiation);
 }
 
-void printGroup(Decl **Begin, unsigned NumDecls,
+bool printGroup(Decl **Begin, unsigned NumDecls,
                 const std::set<unsigned int> &lines, raw_ostream &Out,
                 const PrintingPolicy &Policy, unsigned Indentation) {
   if (NumDecls == 1) {
-    print(*Begin, lines, Out, Policy, Indentation);
-    return;
+    return print(*Begin, lines, Out, Policy, Indentation);
   }
 
   Decl **End = Begin + NumDecls;
@@ -212,6 +213,7 @@ void printGroup(Decl **Begin, unsigned NumDecls,
 
   PrintingPolicy SubPolicy(Policy);
 
+  bool printed = false;
   bool isFirst = true;
   for (; Begin != End; ++Begin) {
     if (isFirst) {
@@ -225,8 +227,9 @@ void printGroup(Decl **Begin, unsigned NumDecls,
       SubPolicy.IncludeTagDefinition = false;
       SubPolicy.SuppressSpecifiers = true;
     }
-    print(*Begin, lines, Out, SubPolicy, Indentation);
+    printed |= print(*Begin, lines, Out, SubPolicy, Indentation);
   }
+  return printed;
 }
 } // namespace selective_printer
 
@@ -359,9 +362,11 @@ void DeclPrinterFiltering::printDeclType(QualType T, StringRef DeclName,
 
 void DeclPrinterFiltering::ProcessDeclGroup(SmallVectorImpl<Decl *> &Decls) {
   this->Indent();
-  selective_printer::printGroup(Decls.data(), Decls.size(), this->lines, Out,
-                                Policy, Indentation);
-  Out << ";\n";
+  bool printed = selective_printer::printGroup(
+      Decls.data(), Decls.size(), this->lines, Out, Policy, Indentation);
+  if (printed) {
+    Out << ";\n";
+  }
   Decls.clear();
 }
 
@@ -522,7 +527,7 @@ void DeclPrinterFiltering::VisitDeclContext(DeclContext *DC, bool Indent) {
     }
 
     this->Indent();
-    Visit(*D);
+    bool printed = Visit(*D);
 
     // FIXME: Need to be able to tell the DeclPrinter when
     const char *Terminator = nullptr;
@@ -555,8 +560,11 @@ void DeclPrinterFiltering::VisitDeclContext(DeclContext *DC, bool Indent) {
     } else
       Terminator = ";";
 
-    if (Terminator)
-      Out << Terminator;
+    if (Terminator) {
+      if (printed || std::strcmp(Terminator, ";") != 0) {
+        Out << Terminator;
+      }
+    }
     if (!Policy.TerseOutput &&
         ((isa<FunctionDecl>(*D) &&
           cast<FunctionDecl>(*D)->doesThisDeclarationHaveABody()) ||
@@ -565,8 +573,11 @@ void DeclPrinterFiltering::VisitDeclContext(DeclContext *DC, bool Indent) {
               ->getTemplatedDecl()
               ->doesThisDeclarationHaveABody())))
       ; // StmtPrinter already added '\n' after CompoundStmt.
-    else
-      Out << "\n";
+    else {
+      if (printed) {
+        Out << "\n";
+      }
+    }
 
     // Declare target attribute is special one, natural spelling for the pragma
     // assumes "ending" construct so print it here.

@@ -8,15 +8,15 @@
 #include <set>
 
 namespace selective_printer {
-void print(const clang::Decl *decl, const std::set<unsigned int> &lines,
+bool print(const clang::Decl *decl, const std::set<unsigned int> &lines,
            llvm::raw_ostream &Out, const clang::PrintingPolicy &Policy,
            unsigned Indentation = 0, bool PrintInstantiation = false);
 
-void print(const clang::Decl *decl, const std::set<unsigned int> &lines,
+bool print(const clang::Decl *decl, const std::set<unsigned int> &lines,
            llvm::raw_ostream &Out, unsigned Indentation = 0,
            bool PrintInstantiation = false);
 
-void printGroup(clang::Decl **Begin, unsigned NumDecls,
+bool printGroup(clang::Decl **Begin, unsigned NumDecls,
                 const std::set<unsigned int> &lines, llvm::raw_ostream &Out,
                 const clang::PrintingPolicy &Policy, unsigned Indentation = 0);
 } // namespace selective_printer
