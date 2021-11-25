@@ -148,16 +148,20 @@ private:
 class RewriteSourceConsumer : public clang::ASTConsumer {
 public:
   RewriteSourceConsumer(const std::set<unsigned int> *target_lines,
-                        std::string &output)
+                        std::vector<printer::FileSlice> &output)
       : target_lines(target_lines), output(output) {}
   void HandleTranslationUnit(clang::ASTContext &Context) override {
     // Traversing the translation unit decl via a RecursiveASTVisitor
     // will visit all nodes in the AST.
     //    llvm::dbgs << Context.getTranslationUnitDecl();
     {
-      llvm::raw_string_ostream out(output);
-      selective_printer::print(Context.getTranslationUnitDecl(), *target_lines,
-                               out);
+      //      llvm::raw_string_ostream out(output);
+      //      selective_printer::print(Context.getTranslationUnitDecl(),
+      //      *target_lines,
+      //                               out);
+      printer::DeclPrinter Printer(*target_lines, Context);
+      Printer.Visit(Context.getTranslationUnitDecl());
+      output = Printer.GetSlices();
     }
     // RewriteSourceVisitor Visitor(Context, target_lines, resulting_lines);
     // Visitor.TraverseDecl(Context.getTranslationUnitDecl());
@@ -167,7 +171,7 @@ private:
   // A RecursiveASTVisitor implementation.
 
   const std::set<unsigned int> *target_lines;
-  std::string &output;
+  std::vector<printer::FileSlice> &output;
 };
 class RewriteSourceAction
 //    : public clang::ASTFrontendAction
@@ -175,7 +179,7 @@ class RewriteSourceAction
 
 public:
   RewriteSourceAction(const std::set<unsigned int> *target_lines,
-                      std::string &output)
+                      std::vector<printer::FileSlice> &output)
       : target_lines(target_lines), output(output) {}
 
   std::unique_ptr<clang::ASTConsumer> newASTConsumer() {
@@ -185,13 +189,13 @@ public:
 
 private:
   const std::set<unsigned int> *target_lines;
-  std::string &output;
+  std::vector<printer::FileSlice> &output;
 };
 
 } // namespace
 
-std::string add_block(std::string file,
-                      const std::set<unsigned int> *target_lines) {
+std::vector<printer::FileSlice>
+add_block(std::string file, const std::set<unsigned int> *target_lines) {
   std::string err;
   auto db = clang::tooling::CompilationDatabase::autoDetectFromDirectory(
       boost::filesystem::path(file).parent_path().string(), err);
@@ -201,9 +205,10 @@ std::string add_block(std::string file,
   std::vector<std::string> Sources;
   Sources.push_back(file);
   clang::tooling::ClangTool Tool(*db, Sources);
-  std::string buffer;
+  std::vector<printer::FileSlice> buffer;
   Tool.run(clang::tooling::newFrontendActionFactory<RewriteSourceAction>(
                new RewriteSourceAction(target_lines, buffer))
                .get());
+  printer::mergeSlices(buffer);
   return buffer;
 }

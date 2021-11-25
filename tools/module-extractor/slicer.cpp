@@ -102,7 +102,7 @@ private:
 };
 
 void copy_files(map<string, set<unsigned int>> &file_lines,
-                map<std::string, std::string> &file_slices, string outPath) {
+                map<std::string, std::vector<printer::FileSlice>> &file_slices, string outPath) {
   for (const auto &file : file_lines) {
     std::ifstream in(file.first);
     std::ofstream out(
@@ -121,11 +121,12 @@ void copy_files(map<string, set<unsigned int>> &file_lines,
   }
   for (const auto &file : file_slices) {
     std::string outname =
-        "out/" + file.first.substr(file.first.find_last_of("/"), string::npos) +
+        "out" + file.first.substr(file.first.find_last_of("/"), string::npos) +
         ".slice";
+    printer::extractSlices(file.first, outname, file.second);
     // llvm::errs() << outname;
-    std::ofstream out(outname, std::ios_base::out | std::ios_base::trunc);
-    out << file.second << endl;
+//    std::ofstream out(outname, std::ios_base::out | std::ios_base::trunc);
+//    out << file.second << endl;
   }
 
   if (true) {
@@ -154,7 +155,7 @@ void copy_files(map<string, set<unsigned int>> &file_lines,
 template <typename AnalysisDomainTy>
 void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
                      LLVMBasedBackwardsICFG &cg, string outPath) {
-  map<string, string> file_slices;
+  map<string, std::vector<printer::FileSlice>> file_slices;
   map<const Function *, set<const llvm::Value *>> slice_instruction;
   llvm::dbgs() << "SOLVING DONE\n";
   for (auto *const module : DB.getAllModules()) {
@@ -326,7 +327,7 @@ void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
     // file_slices.emplace(file, slices);
   }
   for (const auto &f : file_lines) {
-    std::string slices = add_block(f.first, &f.second);
+    const auto slices = add_block(f.first, &f.second);
     file_slices.emplace(f.first, slices);
   }
 

@@ -2,15 +2,30 @@
 #define PHASAR_SOURCE_UTILS_H
 
 #include <clang/AST/Decl.h>
+#include <clang/AST/Expr.h>
 #include <clang/AST/Stmt.h>
 #include <clang/Basic/SourceLocation.h>
 #include <clang/Basic/SourceManager.h>
+#include <clang/Lex/Lexer.h>
 
 #include <cassert>
-#include <clang/AST/Expr.h>
+
 #include <set>
 
 namespace utils {
+
+/**
+ * Return the location directy AFTER the end of the token
+ * @param Loc
+ * @param SM
+ * @param LangOpts
+ * @return
+ */
+inline clang::SourceLocation getEndOfToken(clang::SourceLocation Loc,
+                                           const clang::SourceManager &SM,
+                                           const clang::LangOptions &LangOpts) {
+  return clang::Lexer::getLocForEndOfToken(Loc, 0, SM, LangOpts);
+}
 
 inline clang::PresumedLoc getLocationAsWritten(clang::SourceLocation loc,
                                                const clang::SourceManager &sm) {
