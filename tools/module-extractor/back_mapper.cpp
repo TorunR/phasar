@@ -159,9 +159,8 @@ public:
       //      selective_printer::print(Context.getTranslationUnitDecl(),
       //      *target_lines,
       //                               out);
-      printer::DeclPrinter Printer(*target_lines, Context);
-      Printer.Visit(Context.getTranslationUnitDecl());
-      output = Printer.GetSlices();
+      output = printer::DeclPrinter::GetFileSlices(
+          Context.getTranslationUnitDecl(), *target_lines, Context);
     }
     // RewriteSourceVisitor Visitor(Context, target_lines, resulting_lines);
     // Visitor.TraverseDecl(Context.getTranslationUnitDecl());

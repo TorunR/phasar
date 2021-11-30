@@ -96,6 +96,41 @@ inline bool shouldBeSliced(const clang::Stmt *stmt,
          lines.upper_bound(sm.getPresumedLineNumber(stmt->getEndLoc()));
 }
 
+// Take from clang tidy
+template <typename TokenKind>
+clang::SourceLocation
+findNextToken(clang::SourceLocation Start, const clang::SourceManager &SM,
+              const clang::LangOptions &LangOpts, TokenKind TK) {
+  while (true) {
+    llvm::Optional<clang::Token> CurrentToken =
+        clang::Lexer::findNextToken(Start, SM, LangOpts);
+
+    if (!CurrentToken)
+      return clang::SourceLocation();
+
+    clang::Token PotentialMatch = *CurrentToken;
+    if (PotentialMatch.getKind() == TK)
+      return PotentialMatch.getLocation();
+
+    // If we reach the end of the file, and eof is not the target token, we stop
+    // the loop, otherwise we will get infinite loop (findNextToken will return
+    // eof on eof).
+    if (PotentialMatch.is(clang::tok::eof))
+      return clang::SourceLocation();
+    Start = PotentialMatch.getLastLoc();
+  }
+}
+
+clang::SourceLocation getSemicolonAfterStmtEndLoc(
+    const clang::SourceLocation &EndLoc, const clang::SourceManager &SM,
+    const clang::LangOptions &LangOpts,
+    clang::tok::TokenKind Kind = clang::tok::TokenKind::semi);
+
+clang::SourceLocation
+findPreviousTokenStart(clang::SourceLocation Start,
+                       const clang::SourceManager &SM,
+                       const clang::LangOptions &LangOpts);
+
 } // namespace utils
 
 #endif // PHASAR_SOURCE_UTILS_H

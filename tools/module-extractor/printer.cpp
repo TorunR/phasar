@@ -17,85 +17,309 @@ namespace printer {
 void DeclPrinter::VisitFunctionDecl(const clang::FunctionDecl *decl) {
   if (!decl->hasBody()) {
     llvm_unreachable("Function declarations are not yet supported.");
-  }
-  if (printer::isAnyInWhitelist(decl, TargetLines, SM)) {
-    //    const auto next = clang::Lexer::findLocationAfterToken(
-    //        decl->getBeginLoc(), clang::tok::l_brace, SM, CTX.getLangOpts(),
-    //        false);
-    //    next.dump(SM);
-    const auto text = clang::Lexer::getSourceText(
-        clang::CharSourceRange::getTokenRange(decl->getBeginLoc(),
-                                              decl->getBody()->getBeginLoc()),
-        SM, CTX.getLangOpts());
-    this->Slices.emplace_back(
-        decl->getBeginLoc(),
-        utils::getEndOfToken(decl->getBody()->getBeginLoc(), SM,
-                             CTX.getLangOpts()));
+  } else {
+    if (printer::isAnyInWhitelist(decl, TargetLines, SM)) {
+      //    const auto next = clang::Lexer::findLocationAfterToken(
+      //        decl->getBeginLoc(), clang::tok::l_brace, SM, CTX.getLangOpts(),
+      //        false);
+      //    next.dump(SM);
+      //    const auto text = clang::Lexer::getSourceText(
+      //        clang::CharSourceRange::getTokenRange(decl->getBeginLoc(),
+      //                                              decl->getBody()->getBeginLoc()),
+      //        SM, LO);
+      //      decl->dump();
+      //      decl->getBeginLoc().dump(SM);
+      //      decl->getEndLoc().dump(SM);
+      this->Slices.emplace_back(
+          SM.getExpansionRange(decl->getBeginLoc()).getBegin(),
+          utils::getEndOfToken(
+              SM.getExpansionRange(decl->getBody()->getBeginLoc()).getBegin(),
+              SM, LO));
 
-    llvm::errs() << text;
-    const auto text2 = clang::Lexer::getSourceText(
-        clang::CharSourceRange::getTokenRange(decl->getBody()->getEndLoc(),
-                                              decl->getEndLoc()),
-        SM, CTX.getLangOpts());
-    this->Slices.emplace_back(
-        decl->getBody()->getEndLoc(),
-        utils::getEndOfToken(decl->getEndLoc(), SM, CTX.getLangOpts()));
-    llvm::errs() << text2;
+      //    llvm::errs() << text;
+      //    const auto text2 = clang::Lexer::getSourceText(
+      //        clang::CharSourceRange::getTokenRange(decl->getBody()->getEndLoc(),
+      //                                              decl->getEndLoc()),
+      //        SM, LO);
+      this->Slices.emplace_back(
+          SM.getExpansionRange(decl->getBody()->getEndLoc()).getEnd(),
+          utils::getEndOfToken(SM.getExpansionRange(decl->getEndLoc()).getEnd(),
+                               SM, LO));
+      //    llvm::errs() << text2;
+      const auto Body = StmtPrinterFiltering::GetSlices(
+          decl->getBody(), TargetLines, CTX, SM, LO);
+      Slices.insert(Slices.end(), Body.begin(), Body.end());
+    }
   }
-  // llvm_unreachable("test");
 }
 void DeclPrinter::VisitDecl(const clang::Decl *decl) {
   if (!decl->isImplicit()) {
-    llvm_unreachable("Hit unsupported decl");
+    // TODO
+    // llvm_unreachable("Hit unsupported decl");
   }
 }
-DeclPrinter::DeclPrinter(const std::set<unsigned int> &targetLines,
-                         const clang::ASTContext &ctx)
-    : TargetLines(targetLines), SM(ctx.getSourceManager()), CTX(ctx) {}
 
 void DeclPrinter::VisitTranslationUnitDecl(
     const clang::TranslationUnitDecl *decl) {
-  decl->dump();
+  // decl->dump();
   for (const auto &D : decl->decls()) {
     Visit(D);
   }
 }
-std::vector<FileSlice> DeclPrinter::GetSlices() const {
+
+DeclPrinter::DeclPrinter(const std::set<unsigned int> &Target,
+                         const clang::ASTContext &CTX,
+                         const clang::SourceManager &SM,
+                         const clang::LangOptions &LO)
+    : TargetLines(Target), CTX(CTX), SM(SM), LO(LO) {}
+std::vector<Slice> DeclPrinter::GetSlices(
+    const clang::Decl *Decl, const std::set<unsigned int> &TargetLines,
+    const clang::ASTContext &CTX, const clang::SourceManager &SM,
+    const clang::LangOptions &LO) {
+  DeclPrinter Visitor(TargetLines, CTX, SM, LO);
+  Visitor.Visit(Decl);
+  return Visitor.Slices;
+}
+std::vector<FileSlice>
+DeclPrinter::GetFileSlices(const clang::Decl *Decl,
+                           const std::set<unsigned int> &TargetLines,
+                           const clang::ASTContext &CTX) {
+  const auto &SM = CTX.getSourceManager();
+  const auto Slices =
+      DeclPrinter::GetSlices(Decl, TargetLines, CTX, SM, CTX.getLangOpts());
   std::vector<FileSlice> Result;
+  Result.reserve(Slices.size());
   for (const auto &S : Slices) {
     Result.emplace_back(S, SM);
   }
   return Result;
 }
-
-void StmtPrinterFiltering::VisitStmt(const clang::Stmt *stmt) {
-  llvm_unreachable("Hit unsupported stmt");
+void DeclPrinter::VisitVarDecl(const clang::VarDecl *Decl) {
+  if (isAnyInWhitelist(Decl, TargetLines, SM)) {
+    Slices.emplace_back(
+        SM.getExpansionRange(Decl->getBeginLoc()).getBegin(),
+        utils::getEndOfToken(SM.getExpansionRange(Decl->getEndLoc()).getEnd(),
+                             SM, LO));
+    const auto Semicolon =
+        utils::getSemicolonAfterStmtEndLoc(Decl->getEndLoc(), SM, LO);
+    assert(Semicolon.isValid());
+    Slices.emplace_back(SM.getExpansionRange(Decl->getEndLoc()).getBegin(),
+                        utils::getEndOfToken(Semicolon, SM, LO));
+  }
 }
-void StmtPrinterFiltering::VisitCompoundStmt(const clang::CompoundStmt *stmt) {
-  llvm_unreachable("unimplemented");
+
+bool StmtPrinterFiltering::VisitStmt(const clang::Stmt *Stmt) {
+  if (isAnyInWhitelist(Stmt, TargetLines, SM)) {
+    Slices.emplace_back(
+        SM.getExpansionRange(Stmt->getBeginLoc()).getBegin(),
+        utils::getEndOfToken(SM.getExpansionRange(Stmt->getEndLoc()).getEnd(),
+                             SM, LO));
+    return true;
+  }
+  // llvm_unreachable("Hit unsupported stmt");
+  return false;
+}
+bool StmtPrinterFiltering::VisitCompoundStmt(const clang::CompoundStmt *Stmt) {
+  Slices.emplace_back(
+      SM.getExpansionRange(Stmt->getBeginLoc()).getBegin(),
+      utils::getEndOfToken(SM.getExpansionRange(Stmt->getLBracLoc()).getBegin(),
+                           SM, LO));
+  Slices.emplace_back(
+      SM.getExpansionRange(Stmt->getRBracLoc()).getEnd(),
+      utils::getEndOfToken(SM.getExpansionRange(Stmt->getEndLoc()).getEnd(), SM,
+                           LO));
+  for (const auto *I : Stmt->body()) {
+    PrintStmt(I);
+  }
+  return true;
 }
 StmtPrinterFiltering::StmtPrinterFiltering(
-    const std::set<unsigned int> &targetLines)
-    : TargetLines(targetLines) {}
-void StmtPrinterFiltering::VisitWhileStmt(const clang::WhileStmt *Stmt) {
-  llvm_unreachable("WhileStmt");
+    const std::set<unsigned int> &TargetLines, const clang::ASTContext &CTX,
+    const clang::SourceManager &SM, const clang::LangOptions &LO)
+    : TargetLines(TargetLines), CTX(CTX), SM(SM), LO(LO) {}
+bool StmtPrinterFiltering::VisitWhileStmt(const clang::WhileStmt *Stmt) {
+  if (isAnyInWhitelist(Stmt, TargetLines, SM)) {
+
+    //    Stmt->getBeginLoc().dump(SM);
+    //    //   // Stmt->getBeginLoc()).dump(SM);
+    //    //    SM.getExpansionLoc(Stmt->getBeginLoc()).dump(SM);
+    //    //    Stmt->getEndLoc().dump(SM);
+    //    //    //Stmt->getEndLoc()).dump(SM);
+    //    //    SM.getExpansionLoc(Stmt->getEndLoc()).dump(SM);
+    //    Stmt->getBody()->getBeginLoc().dump(SM);
+    //    SM.getExpansionLoc(Stmt->getBody()->getBeginLoc()).dump(SM);
+    //    utils::findPreviousTokenStart(SM.getFileLoc(Stmt->getBody()->getBeginLoc()),
+    //                                  SM, LO)
+    //        .dump(SM);
+    //
+    //    utils::getEndOfToken(
+    //        utils::findPreviousTokenStart(
+    //            SM.getFileLoc(Stmt->getBody()->getBeginLoc()), SM, LO),
+    //        SM, LO)
+    //        .dump(SM);
+    //    SM.getSpellingLoc(
+    //          utils::getEndOfToken(utils::findPreviousTokenStart(
+    //                                   Stmt->getBody()->getBeginLoc(), SM,
+    //                                   LO),
+    //                               SM, LO))
+    //        .dump(SM);
+
+    Slices.emplace_back(Slice::generateFromStartAndNext(
+        Stmt->getBeginLoc(), Stmt->getBody()->getBeginLoc(), SM, LO));
+    //        SM.getSpellingLoc(Stmt->getBeginLoc()),
+    //        utils::getEndOfToken(utils::findPreviousTokenStart(
+    //                                 Stmt->getBody()->getBeginLoc(), SM, LO),
+    //                             SM, LO));
+    PrintStmt(Stmt->getBody(), true);
+    return true;
+  }
+  return false;
 }
-void StmtPrinterFiltering::VisitForStmt(const clang::ForStmt *Stmt) {
-  llvm_unreachable("ForStmt");
+bool StmtPrinterFiltering::VisitForStmt(const clang::ForStmt *Stmt) {
+  if (isAnyInWhitelist(Stmt, TargetLines, SM)) {
+    Slices.emplace_back(Slice::generateFromStartAndNext(
+        Stmt->getBeginLoc(), Stmt->getBody()->getBeginLoc(), SM, LO));
+    PrintStmt(Stmt->getBody(), true);
+    return true;
+  }
+  return false;
 }
-void StmtPrinterFiltering::VisitDoStmt(const clang::DoStmt *Stmt) {
-  llvm_unreachable("DoStmt");
+bool StmtPrinterFiltering::VisitDoStmt(const clang::DoStmt *Stmt) {
+  if (isAnyInWhitelist(Stmt, TargetLines, SM)) {
+    Slices.emplace_back(Slice::generateFromStartAndNext(
+        Stmt->getBeginLoc(), Stmt->getBody()->getBeginLoc(), SM, LO));
+    PrintStmt(Stmt->getBody(), true);
+    Slices.emplace_back(
+        SM.getExpansionRange(Stmt->getWhileLoc()).getBegin(),
+        utils::getEndOfToken(SM.getExpansionRange(Stmt->getEndLoc()).getEnd(),
+                             SM, LO));
+    return true;
+  }
+  return false;
 }
-void StmtPrinterFiltering::VisitSwitchStmt(const clang::SwitchStmt *Stmt) {
-  llvm_unreachable("SwitchStmt");
+bool StmtPrinterFiltering::VisitSwitchStmt(const clang::SwitchStmt *Stmt) {
+  if (isAnyInWhitelist(Stmt, TargetLines, SM)) {
+    Slices.emplace_back(Slice::generateFromStartAndNext(
+        Stmt->getBeginLoc(), Stmt->getBody()->getBeginLoc(), SM, LO));
+    // Stmt->getBody()->dump();
+    PrintStmt(Stmt->getBody(), true);
+    return true;
+  }
+  return false;
 }
-void StmtPrinterFiltering::VisitReturnStmt(const clang::ReturnStmt *Stmt) {
-  llvm_unreachable("ReturnStatement");
+
+// bool StmtPrinterFiltering::VisitReturnStmt(const clang::ReturnStmt *Stmt) {
+//   if (isAnyInWhitelist(Stmt, TargetLines, SM)) {
+//     Slices.emplace_back(
+//         SM.getExpansionRange(Stmt->getBeginLoc()).getBegin(),
+//         utils::getEndOfToken(SM.getExpansionRange(Stmt->getEndLoc()).getEnd(),
+//                              SM, LO));
+//     const auto Semicolon =
+//         utils::getSemicolonAfterStmtEndLoc(Stmt->getEndLoc(), SM, LO);
+//     assert(Semicolon.isValid());
+//     Slices.emplace_back(SM.getExpansionRange(Stmt->getEndLoc()).getBegin(),
+//                         utils::getEndOfToken(Semicolon, SM, LO));
+//     return true;
+//   }
+//   return false;
+// }
+std::vector<Slice> StmtPrinterFiltering::GetSlices(
+    const clang::Stmt *Stmt, const std::set<unsigned int> &TargetLines,
+    const clang::ASTContext &CTX, const clang::SourceManager &SM,
+    const clang::LangOptions &LO) {
+  StmtPrinterFiltering Visitor(TargetLines, CTX, SM, LO);
+  Visitor.Visit(Stmt);
+  return Visitor.Slices;
 }
+void StmtPrinterFiltering::PrintStmt(const clang::Stmt *Stmt, bool required) {
+  if (Stmt &&
+      (llvm::isa<clang::Expr>(Stmt) || llvm::isa<clang::ContinueStmt>(Stmt) ||
+       llvm::isa<clang::BreakStmt>(Stmt) ||
+       llvm::isa<clang::ReturnStmt>(Stmt) ||
+       llvm::isa<clang::GotoStmt>(Stmt))) {
+    bool visited = Visit(Stmt);
+    if (visited || required) {
+      const auto Semicolon =
+          utils::getSemicolonAfterStmtEndLoc(Stmt->getEndLoc(), SM, LO);
+      assert(Semicolon.isValid());
+      if (visited) {
+        Slices.emplace_back(SM.getExpansionRange(Stmt->getEndLoc()).getEnd(),
+                            utils::getEndOfToken(Semicolon, SM, LO));
+      } else {
+        Slices.emplace_back(Semicolon, utils::getEndOfToken(Semicolon, SM, LO));
+      }
+    }
+  } else if (Stmt) {
+    // Stmt->dump();
+    Visit(Stmt);
+  } else {
+    llvm_unreachable("Null Stmt");
+  }
+}
+bool StmtPrinterFiltering::VisitIfStmt(const clang::IfStmt *Stmt) {
+  if (isAnyInWhitelist(Stmt, TargetLines, SM)) {
+    //    Stmt->getBeginLoc().dump(SM);
+    //    Stmt->getEndLoc().dump(SM);
+    //    Stmt->dump();
+    Slices.emplace_back(Slice::generateFromStartAndNext(
+        Stmt->getBeginLoc(), Stmt->getThen()->getBeginLoc(), SM, LO));
+    PrintStmt(Stmt->getThen(), true);
+    if (Stmt->getElse() && isAnyInWhitelist(Stmt->getElse(), TargetLines, SM)) {
+      //      Stmt->getElseLoc().dump(SM);
+      //      Stmt->getEndLoc().dump(SM);
+      //      SM.getImmediateExpansionRange(Stmt->getEndLoc()).getEnd().dump(SM);
+      //      SM.getExpansionRange(Stmt->getEndLoc()).getEnd().dump(SM);
+      Slices.emplace_back(Slice::generateFromStartAndNext(
+          Stmt->getElseLoc(), Stmt->getElse()->getBeginLoc(), SM, LO));
+      PrintStmt(Stmt->getElse(), true);
+    }
+    return true;
+  }
+  return false;
+}
+bool StmtPrinterFiltering::VisitCaseStmt(const clang::CaseStmt *Stmt) {
+  if (isAnyInWhitelist(Stmt, TargetLines, SM)) {
+    Slices.emplace_back(Slice::generateFromStartAndNext(
+        Stmt->getBeginLoc(), Stmt->getSubStmt()->getBeginLoc(), SM, LO));
+    PrintStmt(Stmt->getSubStmt());
+    return true;
+  }
+  return false;
+}
+bool StmtPrinterFiltering::VisitDefaultStmt(const clang::DefaultStmt *Stmt) {
+  if (isAnyInWhitelist(Stmt, TargetLines, SM)) {
+    Slices.emplace_back(Slice::generateFromStartAndNext(
+        Stmt->getBeginLoc(), Stmt->getSubStmt()->getBeginLoc(), SM, LO));
+    PrintStmt(Stmt->getSubStmt());
+    return true;
+  }
+  return false;
+}
+
+// bool StmtPrinterFiltering::VisitSwitchCase(const clang::SwitchCase *Stmt) {
+//   if(isAnyInWhitelist(Stmt, TargetLines, SM)) {
+//     //Slices.emplace_back(Slice::generateFromStartAndNext(Stmt->getBeginLoc(),
+//     Stmt.g)) return true;
+//   }
+//   return false;
+// }
+
 printer::Slice::Slice(clang::SourceLocation Begin, clang::SourceLocation End)
     : Begin(Begin), End(End) {
   assert(Begin.isValid());
   assert(End.isValid());
+}
+Slice Slice::generateFromStartAndNext(clang::SourceLocation Start,
+                                      clang::SourceLocation Next,
+                                      const clang::SourceManager &SM,
+                                      const clang::LangOptions &LO) {
+  const auto TmpEnd = SM.getExpansionRange(Next).getEnd();
+  const auto TmpStart = SM.getExpansionRange(Start).getBegin();
+  if (TmpEnd == TmpStart) {
+    return {TmpStart, utils::getEndOfToken(TmpStart, SM, LO)};
+  }
+  return {TmpStart, utils::getEndOfToken(
+                        utils::findPreviousTokenStart(TmpEnd, SM, LO), SM, LO)};
 }
 FileOffset::FileOffset(unsigned int Line, unsigned int Column)
     : Line(Line), Column(Column) {}
@@ -202,8 +426,8 @@ void extractSlices(const std::string &FileIn, const std::string &FileOut,
         if (PreviousSlice != Slices.end() &&
             PreviousSlice->End.GetSliceLine() == LineNumber) {
           // We need to pad only after the last slice
-          for (unsigned int I = 0; I < PreviousSlice->End.GetSliceColumn() -
-                                           CurrentSlice->Begin.GetSliceColumn();
+          for (unsigned int I = 0; I < CurrentSlice->Begin.GetSliceColumn() -
+                                           PreviousSlice->End.GetSliceColumn();
                I++) {
             Output << ' ';
           }

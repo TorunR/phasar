@@ -22,6 +22,10 @@ namespace printer {
 template <typename T>
 bool isAnyInWhitelist(const T *Decl, const std::set<unsigned int> &Lines,
                       const clang::SourceManager &SM) {
+  if (SM.getFileID(SM.getSpellingLoc(Decl->getBeginLoc())) !=
+      SM.getMainFileID()) {
+    return false;
+  }
   unsigned int Begin = SM.getPresumedLineNumber(Decl->getBeginLoc());
   unsigned int End = SM.getPresumedLineNumber(Decl->getEndLoc());
   assert(Begin <= End);
@@ -30,8 +34,12 @@ bool isAnyInWhitelist(const T *Decl, const std::set<unsigned int> &Lines,
 
 struct Slice {
   Slice(clang::SourceLocation Begin, clang::SourceLocation End);
-  const clang::SourceLocation Begin;
-  const clang::SourceLocation End;
+  static Slice generateFromStartAndNext(clang::SourceLocation Start,
+                                        clang::SourceLocation Next,
+                                        const clang::SourceManager &SM,
+                                        const clang::LangOptions &LO);
+  clang::SourceLocation Begin;
+  clang::SourceLocation End;
 };
 
 struct FileOffset {
@@ -76,37 +84,67 @@ void mergeSlices(std::vector<FileSlice> &Slices);
 void extractSlices(const std::string &FileIn, const std::string &FileOut,
                    const std::vector<FileSlice> &Slices);
 
-// namespace printer
-
 class StmtPrinterFiltering
-    : public clang::ConstStmtVisitor<StmtPrinterFiltering> {
+    : public clang::ConstStmtVisitor<StmtPrinterFiltering, bool> {
 public:
-  StmtPrinterFiltering(const std::set<unsigned int> &targetLines);
-  void VisitCompoundStmt(const clang::CompoundStmt *stmt);
-  void VisitStmt(const clang::Stmt *stmt);
-  void VisitWhileStmt(const clang::WhileStmt *Stmt);
-  void VisitForStmt(const clang::ForStmt *Stmt);
-  void VisitDoStmt(const clang::DoStmt *Stmt);
-  void VisitSwitchStmt(const clang::SwitchStmt *Stmt);
-  void VisitReturnStmt(const clang::ReturnStmt *Stmt);
+  bool VisitCompoundStmt(const clang::CompoundStmt *Stmt);
+  bool VisitStmt(const clang::Stmt *stmt);
+  bool VisitWhileStmt(const clang::WhileStmt *Stmt);
+  bool VisitForStmt(const clang::ForStmt *Stmt);
+  bool VisitDoStmt(const clang::DoStmt *Stmt);
+  bool VisitSwitchStmt(const clang::SwitchStmt *Stmt);
+  // bool VisitReturnStmt(const clang::ReturnStmt *Stmt);
+  bool VisitIfStmt(const clang::IfStmt *Stmt);
+  // bool VisitSwitchCase(const clang::SwitchCase *Stmt);
+  bool VisitCaseStmt(const clang::CaseStmt *Stmt);
+  bool VisitDefaultStmt(const clang::DefaultStmt *Stmt);
+  static std::vector<Slice> GetSlices(const clang::Stmt *Stmt,
+                                      const std::set<unsigned int> &TargetLines,
+                                      const clang::ASTContext &CTX,
+                                      const clang::SourceManager &SM,
+                                      const clang::LangOptions &LO);
 
 private:
+  StmtPrinterFiltering(const std::set<unsigned int> &TargetLines,
+                       const clang::ASTContext &CTX,
+                       const clang::SourceManager &SM,
+                       const clang::LangOptions &LO);
+
+  void PrintStmt(const clang::Stmt *Stmt, bool required = false);
+
+  std::vector<printer::Slice> Slices;
   const std::set<unsigned int> &TargetLines;
+  const clang::ASTContext &CTX;
+  const clang::SourceManager &SM;
+  const clang::LangOptions &LO;
 };
 class DeclPrinter : public clang::ConstDeclVisitor<DeclPrinter> {
 public:
-  DeclPrinter(const std::set<unsigned int> &targetLines,
-              const clang::ASTContext &ctx);
   void VisitFunctionDecl(const clang::FunctionDecl *decl);
+  void VisitVarDecl(const clang::VarDecl *decl);
   void VisitDecl(const clang::Decl *decl);
   void VisitTranslationUnitDecl(const clang::TranslationUnitDecl *decl);
-  std::vector<FileSlice> GetSlices() const;
+
+  static std::vector<Slice> GetSlices(const clang::Decl *Decl,
+                                      const std::set<unsigned int> &TargetLines,
+                                      const clang::ASTContext &CTX,
+                                      const clang::SourceManager &SM,
+                                      const clang::LangOptions &LO);
+
+  static std::vector<FileSlice>
+  GetFileSlices(const clang::Decl *Decl,
+                const std::set<unsigned int> &TargetLines,
+                const clang::ASTContext &CTX);
 
 private:
+  DeclPrinter(const std::set<unsigned int> &Target,
+              const clang::ASTContext &CTX, const clang::SourceManager &SM,
+              const clang::LangOptions &LO);
   std::vector<printer::Slice> Slices;
   const std::set<unsigned int> &TargetLines;
-  const clang::SourceManager &SM;
   const clang::ASTContext &CTX;
+  const clang::SourceManager &SM;
+  const clang::LangOptions &LO;
 };
 
 } // namespace printer
