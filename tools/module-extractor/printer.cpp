@@ -407,7 +407,10 @@ void extractSlices(const std::string &FileIn, const std::string &FileOut,
       // Case: We are in text befor the slice
       if (CurrentSlice == Slices.end() ||
           CurrentSlice->Begin.GetSliceLine() > LineNumber) {
-        Output << "\n";
+        if (CurrentSlice != Slices.end() &&
+            CurrentSlice->Begin.GetSliceLine() == (LineNumber + 1)) {
+          Output << "\n";
+        }
         break;
       }
       // Handle the following cases:
