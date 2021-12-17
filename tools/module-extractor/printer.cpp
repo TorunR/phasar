@@ -105,7 +105,7 @@ DeclPrinter::GetFileSlices(const clang::Decl *Decl,
 }
 void DeclPrinter::VisitVarDecl(const clang::VarDecl *Decl) {
   if (isInSourceFile(Decl, SM)) {
-    //Decl->dump();
+    // Decl->dump();
     const auto Semicolon =
         utils::getSemicolonAfterStmtEndLoc(Decl->getEndLoc(), SM, LO);
     assert(Semicolon.isValid());
@@ -448,7 +448,7 @@ FileSlice::FileSlice(const Slice &Slice, const clang::SourceManager &SM)
       End(utils::getLocationAsWritten(Slice.End, SM)),
       NeedsDefine(Slice.NeedsDefine) {}
 void mergeSlices(std::vector<FileSlice> &Slices) {
-  assert(Slices.empty());
+  assert(!Slices.empty());
   std::sort(
       Slices.begin(), Slices.end(),
       [](const FileSlice &a, const FileSlice &b) { return a.Begin < b.Begin; });
@@ -468,14 +468,14 @@ void mergeSlices(std::vector<FileSlice> &Slices) {
 void mergeAndSplitSlices(std::vector<FileSlice> &Slices) {
   assert(!Slices.empty());
 
-
   std::vector<FileSlice> Keep;
   std::vector<FileSlice> Tmp;
-  std::copy_if(Slices.begin(), Slices.end(), std::back_inserter(Keep), [](const auto &Slice) { return !Slice.NeedsDefine; });
-  std::copy_if(Slices.begin(), Slices.end(), std::back_inserter(Tmp), [](const auto &Slice) { return Slice.NeedsDefine; });
+  std::copy_if(Slices.begin(), Slices.end(), std::back_inserter(Keep),
+               [](const auto &Slice) { return !Slice.NeedsDefine; });
+  std::copy_if(Slices.begin(), Slices.end(), std::back_inserter(Tmp),
+               [](const auto &Slice) { return Slice.NeedsDefine; });
   Slices.clear();
   std::copy(Tmp.begin(), Tmp.end(), std::back_inserter(Slices));
-
 
   mergeSlices(Slices);
   if (!Keep.empty()) {
@@ -583,6 +583,10 @@ void extractSlices(const std::string &FileIn, const std::string &FileOut,
     LineNumber++;
   }
 }
+bool notOnlyWhitespace(const std::string &Str) {
+  return std::any_of(Str.begin(), Str.end(),
+                     [](unsigned char c) { return !isspace(c); });
+}
 void extractSlicesDefine(const std::string &FileIn, const std::string &FileOut,
                          const std::vector<FileSlice> &Slices) {
   assert(std::is_sorted(Slices.begin(), Slices.end(),
@@ -598,12 +602,22 @@ void extractSlicesDefine(const std::string &FileIn, const std::string &FileOut,
     throw std::runtime_error("Could not open output file " + FileOut);
   }
 
+  std::vector<std::string> Lines;
+  {
+    std::string Line;
+    while (std::getline(Input, Line)) {
+      Lines.push_back(Line);
+    }
+  }
+
   std::string Line;
   unsigned int LineNumber = 0;
+  bool InSliceGroup = false;
 
   auto CurrentSlice = Slices.begin();
   auto NextSlice = CurrentSlice + 1;
-  while (std::getline(Input, Line)) {
+  for (unsigned I = 0; I < Lines.size(); I++) {
+    Line = Lines[I];
     while (true) {
       // Case: We are in text before the slice
       if (CurrentSlice == Slices.end() ||
@@ -612,64 +626,138 @@ void extractSlicesDefine(const std::string &FileIn, const std::string &FileOut,
         break;
       }
 
+      // Case: We are in the middle of a slice
       if (CurrentSlice->Begin.GetSliceLine() < LineNumber &&
           CurrentSlice->End.GetSliceLine() > LineNumber) {
         Output << Line << "\n";
         break;
       }
+
+      // Case Slice is starting in this line
       if (CurrentSlice->Begin.GetSliceLine() == LineNumber) {
         if (CurrentSlice->Begin.GetSliceColumn() != 0) {
-          auto Sub = Line.substr(0, CurrentSlice->Begin.GetSliceColumn());
-          if (Sub.find_first_not_of(" \t") != std::string::npos) {
-            Output << Sub << "\n";
+          const auto Sub = Line.substr(0, CurrentSlice->Begin.GetSliceColumn());
+          if (notOnlyWhitespace(Sub)) {
+            Output << Sub;
+            if (!InSliceGroup) {
+              Output << '\n';
+            }
           }
         }
-        Output << "#ifndef SLICE\n";
+        if (!InSliceGroup) {
+          Output << "#ifndef SLICE\n";
+        }
+        InSliceGroup = false;
         for (unsigned int I = 0; I < CurrentSlice->Begin.GetSliceColumn();
              I++) {
           Output << ' ';
         }
         // Copy our slice
         if (CurrentSlice->End.GetSliceLine() == LineNumber) {
+          // This slice is ending in the same line it is starting in
           Output << Line.substr(CurrentSlice->Begin.GetSliceColumn(),
                                 CurrentSlice->End.GetSliceColumn() -
                                     CurrentSlice->Begin.GetSliceColumn());
-          Output << "\n#endif //Slice\n";
+
           if (NextSlice == Slices.end() ||
               NextSlice->Begin.GetSliceLine() > LineNumber) {
+            // The next slice does not start in the same line
             auto Sub = Line.substr(CurrentSlice->End.GetSliceColumn());
-            if(!Sub.empty()) {
-              Output << Sub  << '\n';
+            if (notOnlyWhitespace(Sub)) {
+              Output << "\n#endif //Slice\n";
+              Output << Sub << '\n';
+            } else {
+              if (NextSlice != Slices.end()) {
+                bool FoundText = false;
+                unsigned TmpLine = I + 1;
+                while (!FoundText &&
+                       NextSlice->Begin.GetSliceLine() > TmpLine) {
+                  FoundText |= notOnlyWhitespace(Lines[TmpLine]);
+                  TmpLine++;
+                }
+                const auto TmpSub =
+                    Lines[NextSlice->Begin.GetSliceLine()].substr(
+                        0, NextSlice->Begin.GetSliceColumn());
+                FoundText |= notOnlyWhitespace(TmpSub);
+                if (!FoundText) {
+                  InSliceGroup = true;
+                } else {
+                  Output << "\n#endif //Slice\n";
+                }
+              } else {
+                Output << "\n#endif //Slice\n";
+              }
             }
 
           } else {
+
             // Next slice to define is in the same column
-            Output << Line.substr(CurrentSlice->End.GetSliceColumn(),
-                                  NextSlice->Begin.GetSliceColumn() -
-                                      CurrentSlice->End.GetSliceColumn());
+            const auto TmpSub =
+                Line.substr(CurrentSlice->End.GetSliceColumn(),
+                            NextSlice->Begin.GetSliceColumn() -
+                                CurrentSlice->End.GetSliceColumn());
+            const bool FoundText = notOnlyWhitespace(TmpSub);
+            if (FoundText) {
+              Output << "\n#endif //Slice\n";
+            } else {
+              InSliceGroup = true;
+            }
+            Output << TmpSub;
           }
         } else {
+          // The current slice is spanning multiple lines
           Output << Line.substr(CurrentSlice->Begin.GetSliceColumn()) << '\n';
           break;
         }
       } else {
         // Handle end case
         Output << Line.substr(0, CurrentSlice->End.GetSliceColumn());
-        Output << "\n#endif //Slice\n";
         if (NextSlice == Slices.end() ||
             NextSlice->Begin.GetSliceLine() > LineNumber) {
-          Output << Line.substr(CurrentSlice->End.GetSliceColumn()) << '\n';
+          auto Sub = Line.substr(CurrentSlice->End.GetSliceColumn());
+          if (notOnlyWhitespace(Sub)) {
+            Output << "\n#endif //Slice\n";
+            Output << Sub << '\n';
+          } else {
+            if (NextSlice != Slices.end()) {
+              bool FoundText = false;
+              unsigned TmpLine = I + 1;
+              while (!FoundText && NextSlice->Begin.GetSliceLine() > TmpLine) {
+                FoundText |= notOnlyWhitespace(Lines[TmpLine]);
+                TmpLine++;
+              }
+              const auto TmpSub = Lines[NextSlice->Begin.GetSliceLine()].substr(
+                  0, NextSlice->Begin.GetSliceColumn());
+              FoundText |= notOnlyWhitespace(TmpSub);
+              if (!FoundText) {
+                InSliceGroup = true;
+              } else {
+                Output << "\n#endif //Slice\n";
+              }
+            } else {
+              Output << "\n#endif //Slice\n";
+            }
+          }
         } else {
           // Next slice to define is in the same column
-          Output << Line.substr(CurrentSlice->End.GetSliceColumn(),
-                                NextSlice->Begin.GetSliceColumn() -
-                                    CurrentSlice->End.GetSliceColumn());
+          const auto TmpSub =
+              Line.substr(CurrentSlice->End.GetSliceColumn(),
+                          NextSlice->Begin.GetSliceColumn() -
+                              CurrentSlice->End.GetSliceColumn());
+          const bool FoundText = notOnlyWhitespace(TmpSub);
+          if (FoundText) {
+            Output << "\n#endif //Slice\n";
+          } else {
+            InSliceGroup = true;
+          }
+          Output << TmpSub;
         }
       }
 
       CurrentSlice++;
       NextSlice = CurrentSlice + 1;
-      if (CurrentSlice == Slices.end() || CurrentSlice->Begin.GetSliceLine() > LineNumber) {
+      if (CurrentSlice == Slices.end() ||
+          CurrentSlice->Begin.GetSliceLine() > LineNumber) {
         break;
       }
     }
