@@ -22,24 +22,30 @@ namespace printer {
 template <typename T>
 bool isAnyInWhitelist(const T *Decl, const std::set<unsigned int> &Lines,
                       const clang::SourceManager &SM) {
-  if (SM.getFileID(SM.getSpellingLoc(Decl->getBeginLoc())) !=
-      SM.getMainFileID()) {
-    return false;
-  }
   unsigned int Begin = SM.getPresumedLineNumber(Decl->getBeginLoc());
   unsigned int End = SM.getPresumedLineNumber(Decl->getEndLoc());
   assert(Begin <= End);
   return Lines.lower_bound(Begin) != Lines.upper_bound(End);
 }
 
+template <typename T>
+bool isInSourceFile(const T *Decl, const clang::SourceManager &SM) {
+  if (SM.getFileID(SM.getSpellingLoc(Decl->getBeginLoc())) !=
+      SM.getMainFileID()) {
+    return false;
+  }
+  return true;
+}
+
 struct Slice {
-  Slice(clang::SourceLocation Begin, clang::SourceLocation End);
+  Slice(clang::SourceLocation Begin, clang::SourceLocation End, bool NeedsDefine = false);
   static Slice generateFromStartAndNext(clang::SourceLocation Start,
                                         clang::SourceLocation Next,
                                         const clang::SourceManager &SM,
                                         const clang::LangOptions &LO);
   clang::SourceLocation Begin;
   clang::SourceLocation End;
+  bool NeedsDefine = false;
 };
 
 struct FileOffset {
@@ -72,17 +78,33 @@ private:
  * End is just one character after the target slice
  */
 struct FileSlice {
-  FileSlice(FileOffset Begin, FileOffset End);
+  //FileSlice(FileOffset Begin, FileOffset End);
   FileSlice(const Slice &Slice, const clang::SourceManager &SM);
   friend std::ostream &operator<<(std::ostream &os, const FileSlice &slice);
   FileOffset Begin;
   FileOffset End;
+  bool NeedsDefine = false;
 };
 
 void mergeSlices(std::vector<FileSlice> &Slices);
+void mergeAndSplitSlices(std::vector<FileSlice> &Slices);
 
+/**
+ *
+ * @param FileIn
+ * @param FileOut
+ * @param Slices Slices to slices
+ */
 void extractSlices(const std::string &FileIn, const std::string &FileOut,
                    const std::vector<FileSlice> &Slices);
+
+/**
+ *
+ * @param FileIn
+ * @param FileOut
+ * @param Slices Slices to put into define code
+ */
+void extractSlicesDefine(const std::string &FileIn, const std::string &FileOut, const std::vector<FileSlice> &Slices);
 
 class StmtPrinterFiltering
     : public clang::ConstStmtVisitor<StmtPrinterFiltering, bool> {
@@ -123,6 +145,7 @@ public:
   void VisitFunctionDecl(const clang::FunctionDecl *decl);
   void VisitVarDecl(const clang::VarDecl *decl);
   void VisitDecl(const clang::Decl *decl);
+  void VisitTypeDecl(const clang::TypeDecl *Decl);
   void VisitTranslationUnitDecl(const clang::TranslationUnitDecl *decl);
 
   static std::vector<Slice> GetSlices(const clang::Decl *Decl,

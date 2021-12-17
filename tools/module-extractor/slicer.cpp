@@ -123,7 +123,7 @@ void copy_files(map<string, set<unsigned int>> &file_lines,
     std::string outname =
         "out" + file.first.substr(file.first.find_last_of("/"), string::npos) +
         ".slice";
-    printer::extractSlices(file.first, outname, file.second);
+    printer::extractSlicesDefine(file.first, outname, file.second);
     // llvm::errs() << outname;
 //    std::ofstream out(outname, std::ios_base::out | std::ios_base::trunc);
 //    out << file.second << endl;

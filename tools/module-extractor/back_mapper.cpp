@@ -12,6 +12,7 @@
 
 #include <utility>
 #include <vector>
+#include <iostream>
 
 /**
  * Notes JR:
@@ -205,9 +206,12 @@ add_block(std::string file, const std::set<unsigned int> *target_lines) {
   Sources.push_back(file);
   clang::tooling::ClangTool Tool(*db, Sources);
   std::vector<printer::FileSlice> buffer;
+
+  std::cerr << file << std::endl;
+
   Tool.run(clang::tooling::newFrontendActionFactory<RewriteSourceAction>(
                new RewriteSourceAction(target_lines, buffer))
                .get());
-  printer::mergeSlices(buffer);
+  printer::mergeAndSplitSlices(buffer);
   return buffer;
 }
