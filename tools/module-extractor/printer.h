@@ -38,7 +38,10 @@ bool isInSourceFile(const T *Decl, const clang::SourceManager &SM) {
 }
 
 struct Slice {
-  Slice(clang::SourceLocation Begin, clang::SourceLocation End, bool NeedsDefine = false);
+  Slice(clang::SourceLocation Begin, clang::SourceLocation End,
+        bool NeedsDefine = false);
+  Slice(clang::SourceLocation Begin, clang::SourceLocation End,
+        std::vector<Slice> Keep);
   static Slice generateFromStartAndNext(clang::SourceLocation Start,
                                         clang::SourceLocation Next,
                                         const clang::SourceManager &SM,
@@ -46,15 +49,13 @@ struct Slice {
   clang::SourceLocation Begin;
   clang::SourceLocation End;
   bool NeedsDefine = false;
+  std::vector<Slice> Keep;
 };
 
 struct FileOffset {
   FileOffset(unsigned int Line, unsigned int Column);
   FileOffset(const clang::PresumedLoc &Loc);
-  bool operator<(const FileOffset &rhs) const;
-  bool operator>(const FileOffset &rhs) const;
-  bool operator<=(const FileOffset &rhs) const;
-  bool operator>=(const FileOffset &rhs) const;
+
   friend std::ostream &operator<<(std::ostream &os, const FileOffset &offset);
 
   /**
@@ -68,6 +69,12 @@ struct FileOffset {
    * @return Zero based line offset
    */
   unsigned int GetSliceLine() const;
+  bool operator==(const FileOffset &rhs) const;
+  bool operator!=(const FileOffset &rhs) const;
+  bool operator<(const FileOffset &rhs) const;
+  bool operator>(const FileOffset &rhs) const;
+  bool operator<=(const FileOffset &rhs) const;
+  bool operator>=(const FileOffset &rhs) const;
 
 private:
   unsigned int Line;
@@ -78,19 +85,22 @@ private:
  * End is just one character after the target slice
  */
 struct FileSlice {
-  //FileSlice(FileOffset Begin, FileOffset End);
+  // FileSlice(FileOffset Begin, FileOffset End);
   FileSlice(const Slice &Slice, const clang::SourceManager &SM);
   friend std::ostream &operator<<(std::ostream &os, const FileSlice &slice);
+  bool operator==(const FileSlice &rhs) const;
+  bool operator!=(const FileSlice &rhs) const;
   FileOffset Begin;
   FileOffset End;
   bool NeedsDefine = false;
+  std::vector<FileSlice> Keep;
 };
 
 void mergeSlices(std::vector<FileSlice> &Slices);
 void mergeAndSplitSlices(std::vector<FileSlice> &Slices);
 
 /**
- *
+ * Currently unused
  * @param FileIn
  * @param FileOut
  * @param Slices Slices to slices
@@ -104,7 +114,12 @@ void extractSlices(const std::string &FileIn, const std::string &FileOut,
  * @param FileOut
  * @param Slices Slices to put into define code
  */
-void extractSlicesDefine(const std::string &FileIn, const std::string &FileOut, const std::vector<FileSlice> &Slices);
+void extractSlicesDefine(const std::string &FileIn, const std::string &FileOut,
+                         const std::vector<FileSlice> &Slices);
+
+void extractRewrittenFunction(const std::vector<std::string> &Lines,
+                              const std::vector<FileSlice> &Slices,
+                              std::ofstream &Output);
 
 class StmtPrinterFiltering
     : public clang::ConstStmtVisitor<StmtPrinterFiltering, bool> {
@@ -120,11 +135,10 @@ public:
   // bool VisitSwitchCase(const clang::SwitchCase *Stmt);
   bool VisitCaseStmt(const clang::CaseStmt *Stmt);
   bool VisitDefaultStmt(const clang::DefaultStmt *Stmt);
-  static std::vector<Slice> GetSlices(const clang::Stmt *Stmt,
-                                      const std::set<unsigned int> &TargetLines,
-                                      const clang::ASTContext &CTX,
-                                      const clang::SourceManager &SM,
-                                      const clang::LangOptions &LO);
+  static std::vector<Slice>
+  GetSlices(const clang::Stmt *Stmt, const std::set<unsigned int> &TargetLines,
+            const clang::ASTContext &CTX, const clang::SourceManager &SM,
+            const clang::LangOptions &LO, unsigned *filtered = nullptr);
 
 private:
   StmtPrinterFiltering(const std::set<unsigned int> &TargetLines,
@@ -134,6 +148,7 @@ private:
 
   void PrintStmt(const clang::Stmt *Stmt, bool required = false);
 
+  unsigned int Filtered = 0;
   std::vector<printer::Slice> Slices;
   const std::set<unsigned int> &TargetLines;
   const clang::ASTContext &CTX;

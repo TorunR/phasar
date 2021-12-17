@@ -12,45 +12,55 @@
 #include <fstream>
 #include <stdexcept>
 #include <string>
+#include <utility>
+
+// Config
+#define EXTRACT_TYPES (true)
+#define EXTRACT_FUNCTION_DECLS (true)
+#define MIN_FILTERED_FOR_EXTRA_FUNCTION (3)
 
 namespace printer {
 void DeclPrinter::VisitFunctionDecl(const clang::FunctionDecl *decl) {
   if (!decl->doesThisDeclarationHaveABody()) {
-    // llvm_unreachable("Function declarations are not yet supported.");
-    // TODO
+    if (isInSourceFile(decl, SM)) {
+      const auto Semicolon =
+          utils::getSemicolonAfterStmtEndLoc(decl->getEndLoc(), SM, LO);
+      assert(Semicolon.isValid());
+      Slice S(SM.getExpansionRange(decl->getBeginLoc()).getBegin(),
+              utils::getEndOfToken(Semicolon, SM, LO));
+
+      if (!isAnyInWhitelist(decl, TargetLines, SM) && !EXTRACT_FUNCTION_DECLS) {
+        S.NeedsDefine = true;
+      }
+      Slices.push_back(S);
+    }
+
   } else {
     if (isInSourceFile(decl, SM)) {
       if (printer::isAnyInWhitelist(decl, TargetLines, SM)) {
-        //    const auto next = clang::Lexer::findLocationAfterToken(
-        //        decl->getBeginLoc(), clang::tok::l_brace, SM,
-        //        CTX.getLangOpts(), false);
-        //    next.dump(SM);
-        //    const auto text = clang::Lexer::getSourceText(
-        //        clang::CharSourceRange::getTokenRange(decl->getBeginLoc(),
-        //                                              decl->getBody()->getBeginLoc()),
-        //        SM, LO);
-        //      decl->dump();
-        //      decl->getBeginLoc().dump(SM);
-        //      decl->getEndLoc().dump(SM);
-        this->Slices.emplace_back(
+        unsigned filtered;
+        const auto Body = StmtPrinterFiltering::GetSlices(
+            decl->getBody(), TargetLines, CTX, SM, LO, &filtered);
+        std::vector<Slice> TmpSlices;
+        TmpSlices.emplace_back(
             SM.getExpansionRange(decl->getBeginLoc()).getBegin(),
             utils::getEndOfToken(
                 SM.getExpansionRange(decl->getBody()->getBeginLoc()).getBegin(),
                 SM, LO));
-
-        //    llvm::errs() << text;
-        //    const auto text2 = clang::Lexer::getSourceText(
-        //        clang::CharSourceRange::getTokenRange(decl->getBody()->getEndLoc(),
-        //                                              decl->getEndLoc()),
-        //        SM, LO);
-        this->Slices.emplace_back(
+        TmpSlices.emplace_back(
             SM.getExpansionRange(decl->getBody()->getEndLoc()).getEnd(),
             utils::getEndOfToken(
                 SM.getExpansionRange(decl->getEndLoc()).getEnd(), SM, LO));
-        //    llvm::errs() << text2;
-        const auto Body = StmtPrinterFiltering::GetSlices(
-            decl->getBody(), TargetLines, CTX, SM, LO);
-        Slices.insert(Slices.end(), Body.begin(), Body.end());
+        TmpSlices.insert(TmpSlices.end(), Body.begin(), Body.end());
+        if (filtered >= MIN_FILTERED_FOR_EXTRA_FUNCTION) {
+          Slices.emplace_back(
+              SM.getExpansionRange(decl->getBeginLoc()).getBegin(),
+              utils::getEndOfToken(
+                  SM.getExpansionRange(decl->getEndLoc()).getEnd(), SM, LO),
+              TmpSlices);
+        } else {
+          Slices.insert(Slices.end(), TmpSlices.begin(), TmpSlices.end());
+        }
       } else {
         Slices.emplace_back(
             SM.getExpansionRange(decl->getBeginLoc()).getBegin(),
@@ -120,7 +130,6 @@ void DeclPrinter::VisitVarDecl(const clang::VarDecl *Decl) {
   }
 }
 void DeclPrinter::VisitTypeDecl(const clang::TypeDecl *Decl) {
-  // TODO: How do we want to deal with types?
   if (isInSourceFile(Decl, SM)) {
     const auto Semicolon =
         utils::getSemicolonAfterStmtEndLoc(Decl->getEndLoc(), SM, LO);
@@ -128,7 +137,7 @@ void DeclPrinter::VisitTypeDecl(const clang::TypeDecl *Decl) {
     Slice S(SM.getExpansionRange(Decl->getBeginLoc()).getBegin(),
             utils::getEndOfToken(Semicolon, SM, LO));
 
-    if (!isAnyInWhitelist(Decl, TargetLines, SM)) {
+    if (!isAnyInWhitelist(Decl, TargetLines, SM) && !EXTRACT_TYPES) {
       S.NeedsDefine = true;
     }
     Slices.push_back(S);
@@ -143,6 +152,7 @@ bool StmtPrinterFiltering::VisitStmt(const clang::Stmt *Stmt) {
                              SM, LO));
     return true;
   }
+  Filtered++;
   Slices.emplace_back(
       SM.getExpansionRange(Stmt->getBeginLoc()).getBegin(),
       utils::getEndOfToken(SM.getExpansionRange(Stmt->getEndLoc()).getEnd(), SM,
@@ -205,6 +215,7 @@ bool StmtPrinterFiltering::VisitWhileStmt(const clang::WhileStmt *Stmt) {
     PrintStmt(Stmt->getBody(), true);
     return true;
   }
+  Filtered++;
   Slices.emplace_back(
       SM.getExpansionRange(Stmt->getBeginLoc()).getBegin(),
       utils::getEndOfToken(SM.getExpansionRange(Stmt->getEndLoc()).getEnd(), SM,
@@ -219,6 +230,7 @@ bool StmtPrinterFiltering::VisitForStmt(const clang::ForStmt *Stmt) {
     PrintStmt(Stmt->getBody(), true);
     return true;
   }
+  Filtered++;
   Slices.emplace_back(
       SM.getExpansionRange(Stmt->getBeginLoc()).getBegin(),
       utils::getEndOfToken(SM.getExpansionRange(Stmt->getEndLoc()).getEnd(), SM,
@@ -237,6 +249,7 @@ bool StmtPrinterFiltering::VisitDoStmt(const clang::DoStmt *Stmt) {
                              SM, LO));
     return true;
   }
+  Filtered++;
   Slices.emplace_back(
       SM.getExpansionRange(Stmt->getBeginLoc()).getBegin(),
       utils::getEndOfToken(SM.getExpansionRange(Stmt->getEndLoc()).getEnd(), SM,
@@ -252,6 +265,7 @@ bool StmtPrinterFiltering::VisitSwitchStmt(const clang::SwitchStmt *Stmt) {
     PrintStmt(Stmt->getBody(), true);
     return true;
   }
+  Filtered++;
   Slices.emplace_back(
       SM.getExpansionRange(Stmt->getBeginLoc()).getBegin(),
       utils::getEndOfToken(SM.getExpansionRange(Stmt->getEndLoc()).getEnd(), SM,
@@ -278,9 +292,12 @@ bool StmtPrinterFiltering::VisitSwitchStmt(const clang::SwitchStmt *Stmt) {
 std::vector<Slice> StmtPrinterFiltering::GetSlices(
     const clang::Stmt *Stmt, const std::set<unsigned int> &TargetLines,
     const clang::ASTContext &CTX, const clang::SourceManager &SM,
-    const clang::LangOptions &LO) {
+    const clang::LangOptions &LO, unsigned *filtered) {
   StmtPrinterFiltering Visitor(TargetLines, CTX, SM, LO);
   Visitor.Visit(Stmt);
+  if (filtered != nullptr) {
+    *filtered = Visitor.Filtered;
+  }
   return Visitor.Slices;
 }
 void StmtPrinterFiltering::PrintStmt(const clang::Stmt *Stmt, bool required) {
@@ -302,6 +319,7 @@ void StmtPrinterFiltering::PrintStmt(const clang::Stmt *Stmt, bool required) {
         Slices.emplace_back(Semicolon, utils::getEndOfToken(Semicolon, SM, LO));
       }
     } else {
+      Filtered++;
       Slices.emplace_back(Semicolon, utils::getEndOfToken(Semicolon, SM, LO),
                           true);
     }
@@ -329,6 +347,7 @@ bool StmtPrinterFiltering::VisitIfStmt(const clang::IfStmt *Stmt) {
           Stmt->getElseLoc(), Stmt->getElse()->getBeginLoc(), SM, LO));
       PrintStmt(Stmt->getElse(), true);
     } else if (Stmt->getElse()) {
+      Filtered++;
       Slices.emplace_back(
           SM.getExpansionRange(Stmt->getElse()->getBeginLoc()).getBegin(),
           utils::getEndOfToken(
@@ -338,6 +357,7 @@ bool StmtPrinterFiltering::VisitIfStmt(const clang::IfStmt *Stmt) {
     }
     return true;
   }
+  Filtered++;
   Slices.emplace_back(
       SM.getExpansionRange(Stmt->getBeginLoc()).getBegin(),
       utils::getEndOfToken(SM.getExpansionRange(Stmt->getEndLoc()).getEnd(), SM,
@@ -352,6 +372,7 @@ bool StmtPrinterFiltering::VisitCaseStmt(const clang::CaseStmt *Stmt) {
     PrintStmt(Stmt->getSubStmt());
     return true;
   }
+  Filtered++;
   Slices.emplace_back(
       SM.getExpansionRange(Stmt->getBeginLoc()).getBegin(),
       utils::getEndOfToken(SM.getExpansionRange(Stmt->getEndLoc()).getEnd(), SM,
@@ -367,6 +388,7 @@ bool StmtPrinterFiltering::VisitDefaultStmt(const clang::DefaultStmt *Stmt) {
     PrintStmt(Stmt->getSubStmt());
     return true;
   }
+  Filtered++;
   Slices.emplace_back(
       SM.getExpansionRange(Stmt->getBeginLoc()).getBegin(),
       utils::getEndOfToken(SM.getExpansionRange(Stmt->getEndLoc()).getEnd(), SM,
@@ -401,24 +423,15 @@ Slice Slice::generateFromStartAndNext(clang::SourceLocation Start,
   return {TmpStart, utils::getEndOfToken(
                         utils::findPreviousTokenStart(TmpEnd, SM, LO), SM, LO)};
 }
+Slice::Slice(clang::SourceLocation Begin, clang::SourceLocation End,
+             std::vector<Slice> Keep)
+    : Begin(Begin), End(End), NeedsDefine(true), Keep(std::move(Keep)) {
+  assert(Begin.isValid());
+  assert(End.isValid());
+}
 FileOffset::FileOffset(unsigned int Line, unsigned int Column)
     : Line(Line), Column(Column) {}
-bool FileOffset::operator<(const FileOffset &rhs) const {
-  if (Line < rhs.Line) {
-    return true;
-  }
-  if (rhs.Line < Line) {
-    return false;
-  }
-  return Column < rhs.Column;
-}
-bool FileOffset::operator>(const FileOffset &rhs) const { return rhs < *this; }
-bool FileOffset::operator<=(const FileOffset &rhs) const {
-  return !(rhs < *this);
-}
-bool FileOffset::operator>=(const FileOffset &rhs) const {
-  return !(*this < rhs);
-}
+
 std::ostream &operator<<(std::ostream &os, const FileOffset &offset) {
   os << "[" << offset.Line << ":" << offset.Column << "]";
   return os;
@@ -435,6 +448,22 @@ unsigned int FileOffset::GetSliceLine() const {
   assert(Line >= 1);
   return Line - 1;
 }
+bool FileOffset::operator==(const FileOffset &rhs) const {
+  return std::tie(Line, Column) == std::tie(rhs.Line, rhs.Column);
+}
+bool FileOffset::operator!=(const FileOffset &rhs) const {
+  return !(rhs == *this);
+}
+bool FileOffset::operator<(const FileOffset &rhs) const {
+  return std::tie(Line, Column) < std::tie(rhs.Line, rhs.Column);
+}
+bool FileOffset::operator>(const FileOffset &rhs) const { return rhs < *this; }
+bool FileOffset::operator<=(const FileOffset &rhs) const {
+  return !(rhs < *this);
+}
+bool FileOffset::operator>=(const FileOffset &rhs) const {
+  return !(*this < rhs);
+}
 // FileSlice::FileSlice(FileOffset Begin, FileOffset End)
 //     : Begin(Begin), End(End) {
 //   assert(Begin < End);
@@ -446,7 +475,18 @@ std::ostream &operator<<(std::ostream &os, const FileSlice &slice) {
 FileSlice::FileSlice(const Slice &Slice, const clang::SourceManager &SM)
     : Begin(utils::getLocationAsWritten(Slice.Begin, SM)),
       End(utils::getLocationAsWritten(Slice.End, SM)),
-      NeedsDefine(Slice.NeedsDefine) {}
+      NeedsDefine(Slice.NeedsDefine) {
+  for (const auto &S : Slice.Keep) {
+    Keep.emplace_back(S, SM);
+  }
+}
+bool FileSlice::operator==(const FileSlice &rhs) const {
+  return std::tie(Begin, End, NeedsDefine, Keep) ==
+         std::tie(rhs.Begin, rhs.End, rhs.NeedsDefine, rhs.Keep);
+}
+bool FileSlice::operator!=(const FileSlice &rhs) const {
+  return !(rhs == *this);
+}
 void mergeSlices(std::vector<FileSlice> &Slices) {
   assert(!Slices.empty());
   std::sort(
@@ -454,7 +494,8 @@ void mergeSlices(std::vector<FileSlice> &Slices) {
       [](const FileSlice &a, const FileSlice &b) { return a.Begin < b.Begin; });
   auto OutputIndex = Slices.begin();
   for (std::size_t I = 1; I < Slices.size(); I++) {
-    if (OutputIndex->End >= Slices[I].Begin) {
+    if (OutputIndex->End >= Slices[I].Begin &&
+        OutputIndex->Keep == Slices[I].Keep) {
       OutputIndex->End = std::max(OutputIndex->End, Slices[I].End);
     } else {
       OutputIndex++;
@@ -477,29 +518,12 @@ void mergeAndSplitSlices(std::vector<FileSlice> &Slices) {
   Slices.clear();
   std::copy(Tmp.begin(), Tmp.end(), std::back_inserter(Slices));
 
-  mergeSlices(Slices);
+  if (!Slices.empty()) {
+    mergeSlices(Slices);
+  }
   if (!Keep.empty()) {
     mergeSlices(Keep);
   }
-
-#ifdef MERGE_DEFINES
-  auto OutputIndex = Slices.begin();
-  auto KeepIndex = Keep.begin();
-  for (std::size_t I = 1; I < Slices.size(); I++) {
-    while (KeepIndex != Keep.end() && KeepIndex->Begin < OutputIndex->End) {
-      KeepIndex++;
-    }
-    // Keep is after us or end
-    if (KeepIndex == Keep.end() || KeepIndex->Begin > Slices[I].Begin) {
-      OutputIndex->End = std::max(OutputIndex->End, Slices[I].End);
-    } else {
-      OutputIndex++;
-      *OutputIndex = Slices[I];
-    }
-  }
-  OutputIndex++;
-  Slices.erase(OutputIndex, Slices.end());
-#endif
 }
 
 void extractSlices(const std::string &FileIn, const std::string &FileOut,
@@ -587,6 +611,7 @@ bool notOnlyWhitespace(const std::string &Str) {
   return std::any_of(Str.begin(), Str.end(),
                      [](unsigned char c) { return !isspace(c); });
 }
+
 void extractSlicesDefine(const std::string &FileIn, const std::string &FileOut,
                          const std::vector<FileSlice> &Slices) {
   assert(std::is_sorted(Slices.begin(), Slices.end(),
@@ -635,6 +660,9 @@ void extractSlicesDefine(const std::string &FileIn, const std::string &FileOut,
 
       // Case Slice is starting in this line
       if (CurrentSlice->Begin.GetSliceLine() == LineNumber) {
+        if (!CurrentSlice->Keep.empty()) {
+          extractRewrittenFunction(Lines, CurrentSlice->Keep, Output);
+        }
         if (CurrentSlice->Begin.GetSliceColumn() != 0) {
           const auto Sub = Line.substr(0, CurrentSlice->Begin.GetSliceColumn());
           if (notOnlyWhitespace(Sub)) {
@@ -646,6 +674,8 @@ void extractSlicesDefine(const std::string &FileIn, const std::string &FileOut,
         }
         if (!InSliceGroup) {
           Output << "#ifndef SLICE\n";
+        } else {
+          Output << '\n';
         }
         InSliceGroup = false;
         for (unsigned int I = 0; I < CurrentSlice->Begin.GetSliceColumn();
@@ -667,7 +697,7 @@ void extractSlicesDefine(const std::string &FileIn, const std::string &FileOut,
               Output << "\n#endif //Slice\n";
               Output << Sub << '\n';
             } else {
-              if (NextSlice != Slices.end()) {
+              if (NextSlice != Slices.end() && NextSlice->Keep.empty()) {
                 bool FoundText = false;
                 unsigned TmpLine = I + 1;
                 while (!FoundText &&
@@ -697,7 +727,7 @@ void extractSlicesDefine(const std::string &FileIn, const std::string &FileOut,
                             NextSlice->Begin.GetSliceColumn() -
                                 CurrentSlice->End.GetSliceColumn());
             const bool FoundText = notOnlyWhitespace(TmpSub);
-            if (FoundText) {
+            if (FoundText || !NextSlice->Keep.empty()) {
               Output << "\n#endif //Slice\n";
             } else {
               InSliceGroup = true;
@@ -719,7 +749,7 @@ void extractSlicesDefine(const std::string &FileIn, const std::string &FileOut,
             Output << "\n#endif //Slice\n";
             Output << Sub << '\n';
           } else {
-            if (NextSlice != Slices.end()) {
+            if (NextSlice != Slices.end() && NextSlice->Keep.empty()) {
               bool FoundText = false;
               unsigned TmpLine = I + 1;
               while (!FoundText && NextSlice->Begin.GetSliceLine() > TmpLine) {
@@ -745,7 +775,7 @@ void extractSlicesDefine(const std::string &FileIn, const std::string &FileOut,
                           NextSlice->Begin.GetSliceColumn() -
                               CurrentSlice->End.GetSliceColumn());
           const bool FoundText = notOnlyWhitespace(TmpSub);
-          if (FoundText) {
+          if (FoundText || !NextSlice->Keep.empty()) {
             Output << "\n#endif //Slice\n";
           } else {
             InSliceGroup = true;
@@ -763,5 +793,83 @@ void extractSlicesDefine(const std::string &FileIn, const std::string &FileOut,
     }
     LineNumber++;
   }
+}
+void extractRewrittenFunction(const std::vector<std::string> &Lines,
+                              const std::vector<FileSlice> &SlicesIn,
+                              std::ofstream &Output) {
+  Output << "#ifdef SLICE\n";
+
+  std::vector<FileSlice> Slices;
+  std::copy_if(SlicesIn.begin(), SlicesIn.end(), std::back_inserter(Slices),
+               [](const FileSlice &Slice) { return !Slice.NeedsDefine; });
+
+  mergeSlices(Slices);
+
+  auto PreviousSlice = Slices.end();
+  auto CurrentSlice = Slices.begin();
+  auto LineNumber = CurrentSlice->Begin.GetSliceLine();
+  while (LineNumber < Lines.size()) {
+    const std::string Line = Lines[LineNumber];
+    while (true) {
+      // Case: We are in text befor the slice
+      if (CurrentSlice == Slices.end() ||
+          CurrentSlice->Begin.GetSliceLine() > LineNumber) {
+        if (CurrentSlice != Slices.end() &&
+            CurrentSlice->Begin.GetSliceLine() == (LineNumber + 1)) {
+          Output << "\n";
+        }
+        break;
+      }
+      // Handle the following cases:
+      // We are in a completely sliced line, excluding the end or begin: Copy
+      // the complete line
+      // We are in the first line: Pad from the previous slice with spaces
+      // and add the text
+      // We are in the last line: Add text, check if
+      // others slices are needed in the same line
+      if (CurrentSlice->Begin.GetSliceLine() < LineNumber &&
+          CurrentSlice->End.GetSliceLine() > LineNumber) {
+        Output << Line << "\n";
+        break;
+      }
+      if (CurrentSlice->Begin.GetSliceLine() == LineNumber) {
+        if (PreviousSlice != Slices.end() &&
+            PreviousSlice->End.GetSliceLine() == LineNumber) {
+          // We need to pad only after the last slice
+          for (unsigned int I = 0; I < CurrentSlice->Begin.GetSliceColumn() -
+                                           PreviousSlice->End.GetSliceColumn();
+               I++) {
+            Output << ' ';
+          }
+        } else {
+          for (unsigned int I = 0; I < CurrentSlice->Begin.GetSliceColumn();
+               I++) {
+            Output << ' ';
+          }
+        }
+        // Copy our slice
+        if (CurrentSlice->End.GetSliceLine() == LineNumber) {
+          Output << Line.substr(CurrentSlice->Begin.GetSliceColumn(),
+                                CurrentSlice->End.GetSliceColumn() -
+                                    CurrentSlice->Begin.GetSliceColumn());
+        } else {
+          Output << Line.substr(CurrentSlice->Begin.GetSliceColumn()) << "\n";
+          break;
+        }
+      } else {
+        // Handle end case
+        Output << Line.substr(0, CurrentSlice->End.GetSliceColumn());
+      }
+
+      PreviousSlice = CurrentSlice;
+      CurrentSlice++;
+      if (CurrentSlice == Slices.end()) {
+        Output << '\n';
+        break;
+      }
+    }
+    LineNumber++;
+  }
+  Output << "#endif //SLICE\n";
 }
 } // namespace printer
