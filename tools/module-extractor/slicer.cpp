@@ -101,8 +101,11 @@ private:
   const std::set<string> &entrypoints;
 };
 
-void copy_files(map<string, set<unsigned int>> &file_lines,
-                map<std::string, std::vector<printer::FileSlice>> &file_slices, string outPath) {
+void copy_files(
+    map<string, set<unsigned int>> &file_lines,
+    map<std::string, std::vector<printer::FileSlice>> &file_slices,
+    map<std::string, std::vector<printer::FileSlice>> &header_slices,
+    const string &outPath) {
   for (const auto &file : file_lines) {
     std::ifstream in(file.first);
     std::ofstream out(
@@ -125,8 +128,14 @@ void copy_files(map<string, set<unsigned int>> &file_lines,
         ".slice";
     printer::extractSlicesDefine(file.first, outname, file.second);
     // llvm::errs() << outname;
-//    std::ofstream out(outname, std::ios_base::out | std::ios_base::trunc);
-//    out << file.second << endl;
+    //    std::ofstream out(outname, std::ios_base::out | std::ios_base::trunc);
+    //    out << file.second << endl;
+  }
+  for (const auto &file : header_slices) {
+    const std::string filename =
+        file.first.substr(file.first.find_last_of("/") + 1, string::npos);
+    const std::string outname = "out/" + filename + ".h";
+    printer::extractHeaderSlices(file.first, outname, file.second, filename);
   }
 
   if (true) {
@@ -156,6 +165,7 @@ template <typename AnalysisDomainTy>
 void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
                      LLVMBasedBackwardsICFG &cg, string outPath) {
   map<string, std::vector<printer::FileSlice>> file_slices;
+  map<string, std::vector<printer::FileSlice>> header_slices;
   map<const Function *, set<const llvm::Value *>> slice_instruction;
   llvm::dbgs() << "SOLVING DONE\n";
   for (auto *const module : DB.getAllModules()) {
@@ -328,10 +338,11 @@ void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
   }
   for (const auto &f : file_lines) {
     const auto slices = add_block(f.first, &f.second);
-    file_slices.emplace(f.first, slices);
+    file_slices.emplace(f.first, slices.first);
+    header_slices.emplace(f.first, slices.second);
   }
 
-  copy_files(file_lines, file_slices, outPath);
+  copy_files(file_lines, file_slices, header_slices, outPath);
 }
 
 std::string createSlice(string target, const set<string> &entrypoints,

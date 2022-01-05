@@ -48,7 +48,10 @@ struct Slice {
                                         const clang::LangOptions &LO);
   clang::SourceLocation Begin;
   clang::SourceLocation End;
-  bool NeedsDefine = false;
+  bool NeedsDefine =
+      false; // True if the Slice should be commented out. If it is a header
+             // slice, true means that it is a function definition where we need
+             // to cut away the body.
   std::vector<Slice> Keep;
 };
 
@@ -163,13 +166,22 @@ public:
   void VisitTypeDecl(const clang::TypeDecl *Decl);
   void VisitTranslationUnitDecl(const clang::TranslationUnitDecl *decl);
 
-  static std::vector<Slice> GetSlices(const clang::Decl *Decl,
-                                      const std::set<unsigned int> &TargetLines,
-                                      const clang::ASTContext &CTX,
-                                      const clang::SourceManager &SM,
-                                      const clang::LangOptions &LO);
+  /**
+   *
+   * @param Decl
+   * @param TargetLines
+   * @param CTX
+   * @param SM
+   * @param LO
+   * @return First are the file slices, then the ones required for the header
+   */
+  static std::pair<std::vector<Slice>, std::vector<Slice>>
+  GetSlices(const clang::Decl *Decl, const std::set<unsigned int> &TargetLines,
+            const clang::ASTContext &CTX, const clang::SourceManager &SM,
+            const clang::LangOptions &LO);
 
-  static std::vector<FileSlice>
+  static std::pair<std::vector<printer::FileSlice>,
+                   std::vector<printer::FileSlice>>
   GetFileSlices(const clang::Decl *Decl,
                 const std::set<unsigned int> &TargetLines,
                 const clang::ASTContext &CTX);
@@ -179,11 +191,16 @@ private:
               const clang::ASTContext &CTX, const clang::SourceManager &SM,
               const clang::LangOptions &LO);
   std::vector<printer::Slice> Slices;
+  std::vector<printer::Slice> HeaderSlices;
   const std::set<unsigned int> &TargetLines;
   const clang::ASTContext &CTX;
   const clang::SourceManager &SM;
   const clang::LangOptions &LO;
 };
+
+void extractHeaderSlices(const std::string &FileIn, const std::string &FileOut,
+                         const std::vector<FileSlice> &Slices,
+                         const std::string &FileName);
 
 } // namespace printer
 

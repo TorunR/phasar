@@ -149,7 +149,8 @@ private:
 class RewriteSourceConsumer : public clang::ASTConsumer {
 public:
   RewriteSourceConsumer(const std::set<unsigned int> *target_lines,
-                        std::vector<printer::FileSlice> &output)
+                        std::pair<std::vector<printer::FileSlice>,
+                                  std::vector<printer::FileSlice>> &output)
       : target_lines(target_lines), output(output) {}
   void HandleTranslationUnit(clang::ASTContext &Context) override {
     // Traversing the translation unit decl via a RecursiveASTVisitor
@@ -171,7 +172,8 @@ private:
   // A RecursiveASTVisitor implementation.
 
   const std::set<unsigned int> *target_lines;
-  std::vector<printer::FileSlice> &output;
+  std::pair<std::vector<printer::FileSlice>, std::vector<printer::FileSlice>>
+      &output;
 };
 class RewriteSourceAction
 //    : public clang::ASTFrontendAction
@@ -179,7 +181,8 @@ class RewriteSourceAction
 
 public:
   RewriteSourceAction(const std::set<unsigned int> *target_lines,
-                      std::vector<printer::FileSlice> &output)
+                      std::pair<std::vector<printer::FileSlice>,
+                                std::vector<printer::FileSlice>> &output)
       : target_lines(target_lines), output(output) {}
 
   std::unique_ptr<clang::ASTConsumer> newASTConsumer() {
@@ -189,12 +192,13 @@ public:
 
 private:
   const std::set<unsigned int> *target_lines;
-  std::vector<printer::FileSlice> &output;
+  std::pair<std::vector<printer::FileSlice>, std::vector<printer::FileSlice>>
+      &output;
 };
 
 } // namespace
 
-std::vector<printer::FileSlice>
+std::pair<std::vector<printer::FileSlice>, std::vector<printer::FileSlice>>
 add_block(std::string file, const std::set<unsigned int> *target_lines) {
   std::string err;
   auto db = clang::tooling::CompilationDatabase::autoDetectFromDirectory(
@@ -205,13 +209,17 @@ add_block(std::string file, const std::set<unsigned int> *target_lines) {
   std::vector<std::string> Sources;
   Sources.push_back(file);
   clang::tooling::ClangTool Tool(*db, Sources);
-  std::vector<printer::FileSlice> buffer;
+  std::pair<std::vector<printer::FileSlice>, std::vector<printer::FileSlice>>
+      buffer;
 
   std::cerr << file << std::endl;
 
   Tool.run(clang::tooling::newFrontendActionFactory<RewriteSourceAction>(
                new RewriteSourceAction(target_lines, buffer))
                .get());
-  printer::mergeAndSplitSlices(buffer);
+  printer::mergeAndSplitSlices(buffer.first);
+  if (!buffer.second.empty()) {
+    printer::mergeSlices(buffer.second);
+  }
   return buffer;
 }
