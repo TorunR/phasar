@@ -1,5 +1,6 @@
 #include "slicer.h"
 #include "back_mapper.h"
+#include "include_handling.h"
 
 #include <llvm/IR/IntrinsicInst.h>
 #include <sys/resource.h>
@@ -105,7 +106,7 @@ void copy_files(
     map<string, set<unsigned int>> &file_lines,
     map<std::string, std::vector<printer::FileSlice>> &file_slices,
     map<std::string, std::vector<printer::FileSlice>> &header_slices,
-    const string &outPath) {
+    const string &outPath, const std::unordered_set<std::string> &blacklist) {
   for (const auto &file : file_lines) {
     std::ifstream in(file.first);
     std::ofstream out(
@@ -135,7 +136,11 @@ void copy_files(
     const std::string filename =
         file.first.substr(file.first.find_last_of("/") + 1, string::npos);
     const std::string outname = "out/" + filename + ".h";
-    printer::extractHeaderSlices(file.first, outname, file.second, filename);
+    const std::string outname_includes = "out/" + filename + ".includes.h";
+    const auto includes =
+        get_includes_to_extract(file.first, outname_includes, blacklist);
+    printer::extractHeaderSlices(file.first, outname, file.second, filename,
+                                 includes);
   }
 
   if (true) {
@@ -163,7 +168,8 @@ void copy_files(
 
 template <typename AnalysisDomainTy>
 void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
-                     LLVMBasedBackwardsICFG &cg, string outPath) {
+                     LLVMBasedBackwardsICFG &cg, string outPath,
+                     const unordered_set<string> &blacklist) {
   map<string, std::vector<printer::FileSlice>> file_slices;
   map<string, std::vector<printer::FileSlice>> header_slices;
   map<const Function *, set<const llvm::Value *>> slice_instruction;
@@ -342,11 +348,12 @@ void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
     header_slices.emplace(f.first, slices.second);
   }
 
-  copy_files(file_lines, file_slices, header_slices, outPath);
+  copy_files(file_lines, file_slices, header_slices, outPath, blacklist);
 }
 
 std::string createSlice(string target, const set<string> &entrypoints,
-                        const vector<Term> &terms, string outPath) {
+                        const vector<Term> &terms, string outPath,
+                        const unordered_set<string> &blacklist) {
   ProjectIRDB DB({std::move(target)}, IRDBOptions::WPA);
   initializeLogger(false);
   //    initializeLogger(true);
@@ -431,10 +438,36 @@ std::string createSlice(string target, const set<string> &entrypoints,
   //  solver.dumpResults(out);
   // out.close();
   cout << "\n";
-  process_results(DB, solver, cg, outPath);
+  process_results(DB, solver, cg, outPath, blacklist);
   return "";
 }
 
+unordered_set<string> read_blacklist(const string &path) {
+  if (path == "none") {
+    return {};
+  }
+  unordered_set<string> blacklist;
+
+  auto trim = [](string str) {
+    str.erase(str.begin(),
+              std::find_if(str.begin(), str.end(),
+                           [](unsigned char c) { return !std::isspace(c); }));
+    str.erase(std::find_if(str.rbegin(), str.rend(),
+                           [](unsigned char c) { return !std::isspace(c); })
+                  .base(),
+              str.end());
+    return str;
+  };
+  ifstream ifs(path);
+  string line;
+  while (getline(ifs, line)) {
+    line = trim(line);
+    if (!line.empty()) {
+      blacklist.insert(line);
+    }
+  }
+  return blacklist;
+}
 int main(int argc, const char **argv) {
   const rlim_t kStackSize = 512 * 1024 * 1024; // min stack size = 128 MB
   struct rlimit rl;
@@ -449,8 +482,11 @@ int main(int argc, const char **argv) {
       }
     }
   }
-  if (argc < 5) {
+  if (argc < 6) {
     cout << "Please provide the correct params" << endl;
+    cout << "Target(.ll); Json config; Output Path; Blacklist file for headers "
+            "to extract or 'none'; entry points ..."
+         << endl;
     // TODO USAGE
     return -1;
   }
@@ -462,13 +498,18 @@ int main(int argc, const char **argv) {
   auto terms = j.get<vector<Term>>();
   string outPath = argv[3];
   set<std::string> entrypoints;
-  for (int i = 4; i < argc; ++i) {
+  const string blacklist_path = argv[4];
+
+  const auto blacklist = read_blacklist(blacklist_path);
+
+  for (int i = 5; i < argc; ++i) {
     entrypoints.insert(argv[i]);
     cout << argv[i] << endl;
   }
+
   std::chrono::steady_clock::time_point begin =
       std::chrono::steady_clock::now();
-  createSlice(target, entrypoints, terms, outPath);
+  createSlice(target, entrypoints, terms, outPath, blacklist);
   std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
   std::cout << "Time difference = "
             << std::chrono::duration_cast<std::chrono::microseconds>(end -

@@ -200,7 +200,8 @@ private:
 
 void extractHeaderSlices(const std::string &FileIn, const std::string &FileOut,
                          const std::vector<FileSlice> &Slices,
-                         const std::string &FileName);
+                         const std::string &FileName,
+                         const std::vector<std::string> &includes);
 
 } // namespace printer
 

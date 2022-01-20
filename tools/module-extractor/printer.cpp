@@ -584,7 +584,7 @@ void extractSlices(const std::string &FileIn, const std::string &FileOut,
           CurrentSlice->Begin.GetSliceLine() > LineNumber) {
         if (CurrentSlice != Slices.end() &&
             CurrentSlice->Begin.GetSliceLine() == (LineNumber + 1)) {
-          Output << "\n";
+          Output << '\n';
         }
         break;
       }
@@ -597,7 +597,7 @@ void extractSlices(const std::string &FileIn, const std::string &FileOut,
       // others slices are needed in the same line
       if (CurrentSlice->Begin.GetSliceLine() < LineNumber &&
           CurrentSlice->End.GetSliceLine() > LineNumber) {
-        Output << Line << "\n";
+        Output << Line << '\n';
         break;
       }
       if (CurrentSlice->Begin.GetSliceLine() == LineNumber) {
@@ -621,7 +621,7 @@ void extractSlices(const std::string &FileIn, const std::string &FileOut,
                                 CurrentSlice->End.GetSliceColumn() -
                                     CurrentSlice->Begin.GetSliceColumn());
         } else {
-          Output << Line.substr(CurrentSlice->Begin.GetSliceColumn()) << "\n";
+          Output << Line.substr(CurrentSlice->Begin.GetSliceColumn()) << '\n';
           break;
         }
       } else {
@@ -646,7 +646,8 @@ bool notOnlyWhitespace(const std::string &Str) {
 
 void extractHeaderSlices(const std::string &FileIn, const std::string &FileOut,
                          const std::vector<FileSlice> &Slices,
-                         const std::string &FileName) {
+                         const std::string &FileName,
+                         const std::vector<std::string> &includes) {
   std::ifstream Input(FileIn);
   if (!Input.is_open()) {
     throw std::runtime_error("Could not open input file " + FileIn);
@@ -659,8 +660,14 @@ void extractHeaderSlices(const std::string &FileIn, const std::string &FileOut,
   std::transform(HeaderName.begin(), HeaderName.end(), HeaderName.begin(),
                  [](unsigned char c) { return std::toupper(c); });
   HeaderName += "_H";
-  Output << "#ifndef " << HeaderName << "\n";
-  Output << "#define " << HeaderName << "\n";
+  Output << "#ifndef " << HeaderName << '\n';
+  Output << "#define " << HeaderName << '\n';
+
+  Output << "\n// Includes\n";
+  for (const auto &Include : includes) {
+    Output << Include << '\n';
+  }
+  Output << "// End Includes\n";
 
   std::string Line;
   unsigned int LineNumber = 0;
@@ -710,7 +717,7 @@ void extractHeaderSlices(const std::string &FileIn, const std::string &FileOut,
           }
           Output << '\n';
         } else {
-          Output << Line.substr(CurrentSlice->Begin.GetSliceColumn()) << "\n";
+          Output << Line.substr(CurrentSlice->Begin.GetSliceColumn()) << '\n';
           break;
         }
       } else {
@@ -732,7 +739,7 @@ void extractHeaderSlices(const std::string &FileIn, const std::string &FileOut,
     LineNumber++;
   }
 
-  Output << "#endif //" << HeaderName << "\n";
+  Output << "#endif //" << HeaderName << '\n';
 }
 
 void extractSlicesDefine(const std::string &FileIn, const std::string &FileOut,
@@ -770,14 +777,14 @@ void extractSlicesDefine(const std::string &FileIn, const std::string &FileOut,
       // Case: We are in text before the slice
       if (CurrentSlice == Slices.end() ||
           CurrentSlice->Begin.GetSliceLine() > LineNumber) {
-        Output << Line << "\n";
+        Output << Line << '\n';
         break;
       }
 
       // Case: We are in the middle of a slice
       if (CurrentSlice->Begin.GetSliceLine() < LineNumber &&
           CurrentSlice->End.GetSliceLine() > LineNumber) {
-        Output << Line << "\n";
+        Output << Line << '\n';
         break;
       }
 
@@ -939,7 +946,7 @@ void extractRewrittenFunction(const std::vector<std::string> &Lines,
           CurrentSlice->Begin.GetSliceLine() > LineNumber) {
         if (CurrentSlice != Slices.end() &&
             CurrentSlice->Begin.GetSliceLine() == (LineNumber + 1)) {
-          Output << "\n";
+          Output << '\n';
         }
         break;
       }
@@ -952,7 +959,7 @@ void extractRewrittenFunction(const std::vector<std::string> &Lines,
       // others slices are needed in the same line
       if (CurrentSlice->Begin.GetSliceLine() < LineNumber &&
           CurrentSlice->End.GetSliceLine() > LineNumber) {
-        Output << Line << "\n";
+        Output << Line << '\n';
         break;
       }
       if (CurrentSlice->Begin.GetSliceLine() == LineNumber) {
@@ -976,7 +983,7 @@ void extractRewrittenFunction(const std::vector<std::string> &Lines,
                                 CurrentSlice->End.GetSliceColumn() -
                                     CurrentSlice->Begin.GetSliceColumn());
         } else {
-          Output << Line.substr(CurrentSlice->Begin.GetSliceColumn()) << "\n";
+          Output << Line.substr(CurrentSlice->Begin.GetSliceColumn()) << '\n';
           break;
         }
       } else {

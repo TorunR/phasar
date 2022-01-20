@@ -14,6 +14,8 @@ if (PHASAR_IN_TREE)
             tools/module-extractor/SelectiveStmtPrinter.h
             tools/module-extractor/printer.cpp
             tools/module-extractor/printer.h
+            tools/module-extractor/include_handling.cpp
+            tools/module-extractor/include_handling.h
             )
 else ()
     add_executable(slicer
@@ -31,6 +33,8 @@ else ()
             ../module-extractor/SelectiveStmtPrinter.h
             ../module-extractor/printer.cpp
             ../module-extractor/printer.h
+            ../module-extractor/include_handling.cpp
+            ../module-extractor/include_handling.h
             )
 endif ()
 
