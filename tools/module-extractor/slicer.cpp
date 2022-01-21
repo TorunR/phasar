@@ -136,11 +136,10 @@ void copy_files(
     const std::string filename =
         file.first.substr(file.first.find_last_of("/") + 1, string::npos);
     const std::string outname = "out/" + filename + ".h";
-    const std::string outname_includes = "out/" + filename + ".includes.h";
-    const auto includes =
-        get_includes_to_extract(file.first, outname_includes, blacklist);
+    const auto includes = get_includes_to_extract(file.first, blacklist);
     printer::extractHeaderSlices(file.first, outname, file.second, filename,
                                  includes);
+    cleanup_includes(file.first, outname);
   }
 
   if (true) {
