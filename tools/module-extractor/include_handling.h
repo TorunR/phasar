@@ -15,7 +15,6 @@ boost::filesystem::path get_tmp_filename();
 bool is_iwyu_available();
 
 void cleanup_includes(const std::string &original_file,
-                      const std::string &header,
-                      const std::string &compile_commands_path);
+                      const std::string &header);
 
 #endif // PHASAR_INCLUDE_HANDLING_H

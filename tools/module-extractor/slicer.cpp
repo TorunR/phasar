@@ -106,8 +106,7 @@ void copy_files(
     map<string, set<unsigned int>> &file_lines,
     map<std::string, std::vector<printer::FileSlice>> &file_slices,
     map<std::string, std::vector<printer::FileSlice>> &header_slices,
-    const string &outPath, const unordered_set<std::string> &blacklist,
-    const string &compile_commands_path) {
+    const string &outPath, const std::unordered_set<std::string> &blacklist) {
   for (const auto &file : file_lines) {
     std::ifstream in(file.first);
     std::ofstream out(
@@ -140,7 +139,7 @@ void copy_files(
     const auto includes = get_includes_to_extract(file.first, blacklist);
     printer::extractHeaderSlices(file.first, outname, file.second, filename,
                                  includes);
-    cleanup_includes(file.first, outname, compile_commands_path);
+    cleanup_includes(file.first, outname);
   }
 
   if (true) {
@@ -169,8 +168,7 @@ void copy_files(
 template <typename AnalysisDomainTy>
 void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
                      LLVMBasedBackwardsICFG &cg, string outPath,
-                     const unordered_set<string> &blacklist,
-                     const string &compile_commands_dir) {
+                     const unordered_set<string> &blacklist) {
   map<string, std::vector<printer::FileSlice>> file_slices;
   map<string, std::vector<printer::FileSlice>> header_slices;
   map<const Function *, set<const llvm::Value *>> slice_instruction;
@@ -349,14 +347,13 @@ void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
     header_slices.emplace(f.first, slices.second);
   }
 
-  copy_files(file_lines, file_slices, header_slices, outPath, blacklist,
-             compile_commands_dir);
+  copy_files(file_lines, file_slices, header_slices, outPath, blacklist);
 }
 
 std::string createSlice(string target, const set<string> &entrypoints,
                         const vector<Term> &terms, string outPath,
                         const unordered_set<string> &blacklist) {
-  ProjectIRDB DB({target}, IRDBOptions::WPA);
+  ProjectIRDB DB({std::move(target)}, IRDBOptions::WPA);
   initializeLogger(false);
   //    initializeLogger(true);
   LLVMTypeHierarchy th(DB);
@@ -440,11 +437,7 @@ std::string createSlice(string target, const set<string> &entrypoints,
   //  solver.dumpResults(out);
   // out.close();
   cout << "\n";
-  boost::filesystem::path compile_commands_dir(target);
-  compile_commands_dir = compile_commands_dir.remove_filename();
-  const std::string compile_commands_dir_str = compile_commands_dir.native();
-  // std::cerr << compile_commands_dir << std::endl;
-  process_results(DB, solver, cg, outPath, blacklist, compile_commands_dir_str);
+  process_results(DB, solver, cg, outPath, blacklist);
   return "";
 }
 
