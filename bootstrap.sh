@@ -115,15 +115,15 @@ fi
 # installing LLVM
 tmp_dir=`mktemp -d "llvm-10_build.XXXXXXXX" --tmpdir`
 ./utils/install-llvm.sh ${NUM_THREADS} ${tmp_dir} ${LLVM_INSTALL_DIR} ${LLVM_RELEASE}
-rm -rf ${tmp_dir}
+#rm -rf ${tmp_dir}
 sudo pip3 install wllvm
 echo "dependencies successfully installed"
 
 
 echo "Building PhASAR..."
 ${DO_UNIT_TESTS} && echo "with unit tests."
-git submodule init
-git submodule update
+#git submodule init
+#git submodule update
 
 export CC=${LLVM_INSTALL_DIR}/bin/clang
 export CXX=${LLVM_INSTALL_DIR}/bin/clang++
