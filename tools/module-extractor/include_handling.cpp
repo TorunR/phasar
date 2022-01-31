@@ -73,6 +73,9 @@ void cleanup_includes(const std::string &original_file,
   if (!is_iwyu_available()) {
     return;
   }
+  if (compile_commands_path == "none") {
+    return;
+  }
   /**
    * iwyu expects a compile_commands.json and paths to match, so we use the
    * following approach:
@@ -117,7 +120,7 @@ void cleanup_includes(const std::string &original_file,
   // https://github.com/include-what-you-use/include-what-you-use/issues/440
   // https://github.com/include-what-you-use/include-what-you-use/blob/master/iwyu_globals.h#L33
   // https://github.com/include-what-you-use/include-what-you-use/blob/master/iwyu.cc#L3648
-  if (iwyu_return == 1) {
+  if (iwyu_return != 0) {
     std::cerr << "An error occurred running the following command: "
               << iwyu_command << std::endl;
     // Just cleanup but leave the output behind

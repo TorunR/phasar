@@ -13,6 +13,20 @@ findNextTokenSkippingComments(clang::SourceLocation Start,
   return CurrentToken;
 }
 
+llvm::Optional<clang::Token> findNextToken(clang::SourceLocation Start,
+                                           clang::tok::TokenKind Tok,
+                                           const clang::SourceManager &SM,
+                                           const clang::LangOptions &LangOpts) {
+  llvm::Optional<clang::Token> CurrentToken;
+  do {
+    CurrentToken = clang::Lexer::findNextToken(Start, SM, LangOpts);
+    if (CurrentToken) {
+      Start = CurrentToken->getLocation();
+    }
+  } while (CurrentToken && !CurrentToken->is(Tok));
+  return CurrentToken;
+}
+
 // TODO: maybe change handling of macros
 // Given a Stmt which does not include it's semicolon this method returns the
 // SourceLocation of the semicolon.
@@ -45,7 +59,7 @@ clang::SourceLocation getSemicolonAfterStmtEndLoc(
   }
 
   llvm::Optional<clang::Token> NextTok =
-      findNextTokenSkippingComments(EndLoc, SM, LangOpts);
+      findNextToken(EndLoc, Kind, SM, LangOpts);
 
   // Testing for semicolon again avoids some issues with macros.
   if (NextTok && NextTok->is(Kind))

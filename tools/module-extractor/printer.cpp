@@ -142,10 +142,13 @@ DeclPrinter::GetFileSlices(const clang::Decl *Decl,
   return Result;
 }
 void DeclPrinter::VisitVarDecl(const clang::VarDecl *Decl) {
+  //  Decl->dump();
+  //  Decl->getSourceRange().getEnd().dump(SM);
+  //  Decl->getEndLoc().dump(SM);
   if (isInSourceFile(Decl, SM)) {
     // Decl->dump();
-    const auto Semicolon =
-        utils::getSemicolonAfterStmtEndLoc(Decl->getEndLoc(), SM, LO);
+    const auto Semicolon = utils::getSemicolonAfterStmtEndLoc(
+        Decl->getSourceRange().getEnd(), SM, LO);
     assert(Semicolon.isValid());
     Slice S(SM.getExpansionRange(Decl->getBeginLoc()).getBegin(),
             utils::getEndOfToken(Semicolon, SM, LO));
@@ -462,7 +465,9 @@ Slice::Slice(clang::SourceLocation Begin, clang::SourceLocation End,
   assert(End.isValid());
 }
 FileOffset::FileOffset(unsigned int Line, unsigned int Column)
-    : Line(Line), Column(Column) {}
+    : Line(Line), Column(Column) {
+  assert(Line > 0 && Column > 0);
+}
 
 std::ostream &operator<<(std::ostream &os, const FileOffset &offset) {
   os << "[" << offset.Line << ":" << offset.Column << "]";
@@ -471,6 +476,7 @@ std::ostream &operator<<(std::ostream &os, const FileOffset &offset) {
 FileOffset::FileOffset(const clang::PresumedLoc &Loc)
     : Line(Loc.getLine()), Column(Loc.getColumn()) {
   assert(Loc.isValid());
+  assert(Line > 0 && Column > 0);
 }
 unsigned int FileOffset::GetSliceColumn() const {
   assert(Column >= 1);

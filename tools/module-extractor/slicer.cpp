@@ -355,6 +355,7 @@ void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
 
 std::string createSlice(string target, const set<string> &entrypoints,
                         const vector<Term> &terms, string outPath,
+                        string compileCommandsPath,
                         const unordered_set<string> &blacklist) {
   ProjectIRDB DB({target}, IRDBOptions::WPA);
   initializeLogger(false);
@@ -440,11 +441,7 @@ std::string createSlice(string target, const set<string> &entrypoints,
   //  solver.dumpResults(out);
   // out.close();
   cout << "\n";
-  boost::filesystem::path compile_commands_dir(target);
-  compile_commands_dir = compile_commands_dir.remove_filename();
-  const std::string compile_commands_dir_str = compile_commands_dir.native();
-  // std::cerr << compile_commands_dir << std::endl;
-  process_results(DB, solver, cg, outPath, blacklist, compile_commands_dir_str);
+  process_results(DB, solver, cg, outPath, blacklist, compileCommandsPath);
   return "";
 }
 
@@ -488,9 +485,10 @@ int main(int argc, const char **argv) {
       }
     }
   }
-  if (argc < 6) {
+  if (argc < 7) {
     cout << "Please provide the correct params" << endl;
-    cout << "Target(.ll); Json config; Output Path; Blacklist file for headers "
+    cout << "Target(.ll); Json config; Output Path; Path to "
+            "compile_commands.json or 'none'; Blacklist file for headers "
             "to extract or 'none'; entry points ..."
          << endl;
     // TODO USAGE
@@ -504,18 +502,20 @@ int main(int argc, const char **argv) {
   auto terms = j.get<vector<Term>>();
   string outPath = argv[3];
   set<std::string> entrypoints;
-  const string blacklist_path = argv[4];
+  const string compile_commands_path = argv[4];
+  const string blacklist_path = argv[5];
 
   const auto blacklist = read_blacklist(blacklist_path);
 
-  for (int i = 5; i < argc; ++i) {
+  for (int i = 6; i < argc; ++i) {
     entrypoints.insert(argv[i]);
     cout << argv[i] << endl;
   }
 
   std::chrono::steady_clock::time_point begin =
       std::chrono::steady_clock::now();
-  createSlice(target, entrypoints, terms, outPath, blacklist);
+  createSlice(target, entrypoints, terms, outPath, compile_commands_path,
+              blacklist);
   std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
   std::cout << "Time difference = "
             << std::chrono::duration_cast<std::chrono::microseconds>(end -

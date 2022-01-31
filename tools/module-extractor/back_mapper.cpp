@@ -209,6 +209,10 @@ add_block(std::string file, const std::set<unsigned int> *target_lines) {
   std::vector<std::string> Sources;
   Sources.push_back(file);
   clang::tooling::ClangTool Tool(*db, Sources);
+  const auto Adjuster = clang::tooling::getInsertArgumentAdjuster(
+      "-isystem/usr/local/llvm-10/lib/clang/10.0.1/include",
+      clang::tooling::ArgumentInsertPosition::BEGIN);
+  Tool.appendArgumentsAdjuster(Adjuster);
   std::pair<std::vector<printer::FileSlice>, std::vector<printer::FileSlice>>
       buffer;
 
