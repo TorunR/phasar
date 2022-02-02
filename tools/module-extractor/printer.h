@@ -38,6 +38,7 @@ bool isInSourceFile(const T *Decl, const clang::SourceManager &SM) {
 }
 
 struct Slice {
+  Slice();
   Slice(clang::SourceLocation Begin, clang::SourceLocation End,
         bool NeedsDefine = false);
   Slice(clang::SourceLocation Begin, clang::SourceLocation End,

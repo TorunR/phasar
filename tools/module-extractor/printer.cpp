@@ -26,10 +26,16 @@ void DeclPrinter::VisitFunctionDecl(const clang::FunctionDecl *decl) {
     if (isInSourceFile(decl, SM)) {
       const auto Semicolon =
           utils::getSemicolonAfterStmtEndLoc(decl->getEndLoc(), SM, LO);
-      assert(Semicolon.isValid());
-      Slice S(SM.getExpansionRange(decl->getBeginLoc()).getBegin(),
-              utils::getEndOfToken(Semicolon, SM, LO));
-
+      Slice S;
+      if (Semicolon.isValid()) {
+        S = Slice(SM.getExpansionRange(decl->getBeginLoc()).getBegin(),
+                  utils::getEndOfToken(Semicolon, SM, LO));
+      } else {
+        S = Slice(
+            SM.getExpansionRange(decl->getBeginLoc()).getBegin(),
+            utils::getEndOfToken(
+                SM.getExpansionRange(decl->getEndLoc()).getBegin(), SM, LO));
+      }
       if (!isAnyInWhitelist(decl, TargetLines, SM) && !EXTRACT_FUNCTION_DECLS) {
         S.NeedsDefine = true;
       }
@@ -77,9 +83,16 @@ void DeclPrinter::VisitFunctionDecl(const clang::FunctionDecl *decl) {
         } else {
           const auto Semicolon = utils::getSemicolonAfterStmtEndLoc(
               FirstDecl->getEndLoc(), SM, LO);
-          assert(Semicolon.isValid());
-          Slice S(SM.getExpansionRange(FirstDecl->getBeginLoc()).getBegin(),
-                  utils::getEndOfToken(Semicolon, SM, LO));
+          Slice S;
+          if (Semicolon.isValid()) {
+            S = Slice(SM.getExpansionRange(FirstDecl->getBeginLoc()).getBegin(),
+                      utils::getEndOfToken(Semicolon, SM, LO));
+          } else {
+            S = Slice(SM.getExpansionRange(FirstDecl->getBeginLoc()).getBegin(),
+                      utils::getEndOfToken(
+                          SM.getExpansionRange(FirstDecl->getEndLoc()).getEnd(),
+                          SM, LO));
+          }
           S.NeedsDefine = false;
           HeaderSlices.push_back(S);
         }
@@ -149,9 +162,15 @@ void DeclPrinter::VisitVarDecl(const clang::VarDecl *Decl) {
     // Decl->dump();
     const auto Semicolon = utils::getSemicolonAfterStmtEndLoc(
         Decl->getSourceRange().getEnd(), SM, LO);
-    assert(Semicolon.isValid());
-    Slice S(SM.getExpansionRange(Decl->getBeginLoc()).getBegin(),
-            utils::getEndOfToken(Semicolon, SM, LO));
+    Slice S;
+    if (Semicolon.isValid()) {
+      S = Slice(SM.getExpansionRange(Decl->getBeginLoc()).getBegin(),
+                utils::getEndOfToken(Semicolon, SM, LO));
+    } else {
+      S = Slice(SM.getExpansionRange(Decl->getBeginLoc()).getBegin(),
+                utils::getEndOfToken(
+                    SM.getExpansionRange(Decl->getEndLoc()).getEnd(), SM, LO));
+    }
 
     if (!isAnyInWhitelist(Decl, TargetLines, SM)) {
       S.NeedsDefine = true;
@@ -164,9 +183,15 @@ void DeclPrinter::VisitTypeDecl(const clang::TypeDecl *Decl) {
   if (isInSourceFile(Decl, SM)) {
     const auto Semicolon =
         utils::getSemicolonAfterStmtEndLoc(Decl->getEndLoc(), SM, LO);
-    assert(Semicolon.isValid());
-    Slice S(SM.getExpansionRange(Decl->getBeginLoc()).getBegin(),
-            utils::getEndOfToken(Semicolon, SM, LO));
+    Slice S;
+    if (Semicolon.isValid()) {
+      S = Slice(SM.getExpansionRange(Decl->getBeginLoc()).getBegin(),
+                utils::getEndOfToken(Semicolon, SM, LO));
+    } else {
+      S = Slice(SM.getExpansionRange(Decl->getBeginLoc()).getBegin(),
+                utils::getEndOfToken(
+                    SM.getExpansionRange(Decl->getEndLoc()).getEnd(), SM, LO));
+    }
 
     if (!isAnyInWhitelist(Decl, TargetLines, SM) && !EXTRACT_TYPES) {
       S.NeedsDefine = true;
@@ -342,9 +367,11 @@ void StmtPrinterFiltering::PrintStmt(const clang::Stmt *Stmt, bool required) {
        llvm::isa<clang::ReturnStmt>(Stmt) ||
        llvm::isa<clang::GotoStmt>(Stmt))) {
     bool visited = Visit(Stmt);
-    const auto Semicolon =
+    auto Semicolon =
         utils::getSemicolonAfterStmtEndLoc(Stmt->getEndLoc(), SM, LO);
-    assert(Semicolon.isValid());
+    if (!Semicolon.isValid()) {
+      Semicolon = SM.getExpansionRange(Stmt->getEndLoc()).getEnd();
+    }
     if (visited || required) {
 
       if (visited) {
@@ -464,6 +491,7 @@ Slice::Slice(clang::SourceLocation Begin, clang::SourceLocation End,
   assert(Begin.isValid());
   assert(End.isValid());
 }
+Slice::Slice() {}
 FileOffset::FileOffset(unsigned int Line, unsigned int Column)
     : Line(Line), Column(Column) {
   assert(Line > 0 && Column > 0);
