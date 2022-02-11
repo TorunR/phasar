@@ -1,5 +1,4 @@
 #include "back_mapper.h"
-#include "SelectiveDeclPrinter.h"
 #include "printer.h"
 
 #include <boost/filesystem/operations.hpp>

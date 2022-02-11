@@ -8,10 +8,6 @@ if (PHASAR_IN_TREE)
             tools/module-extractor/printer.h
             tools/module-extractor/source_utils.h
             tools/module-extractor/source_utils.cpp
-            tools/module-extractor/SelectiveDeclPrinter.cpp
-            tools/module-extractor/SelectiveDeclPrinter.h
-            tools/module-extractor/SelectiveStmtPrinter.cpp
-            tools/module-extractor/SelectiveStmtPrinter.h
             tools/module-extractor/printer.cpp
             tools/module-extractor/printer.h
             tools/module-extractor/include_handling.cpp
@@ -27,10 +23,6 @@ else ()
             ../module-extractor/source_utils.cpp
             ../module-extractor/printer.cpp
             ../module-extractor/printer.h
-            ../module-extractor/SelectiveDeclPrinter.cpp
-            ../module-extractor/SelectiveDeclPrinter.h
-            ../module-extractor/SelectiveStmtPrinter.cpp
-            ../module-extractor/SelectiveStmtPrinter.h
             ../module-extractor/printer.cpp
             ../module-extractor/printer.h
             ../module-extractor/include_handling.cpp
