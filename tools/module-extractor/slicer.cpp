@@ -108,6 +108,10 @@ void copy_files(
     map<std::string, std::vector<printer::FileSlice>> &header_slices,
     const string &outPath, const unordered_set<std::string> &blacklist,
     const string &compile_commands_path) {
+
+  /**
+   * Slicing based on lines
+   */
   for (const auto &file : file_lines) {
     std::ifstream in(file.first);
     std::ofstream out(
@@ -124,15 +128,21 @@ void copy_files(
     }
     out.close();
   }
+
+  /**
+   * Slicing based on source information
+   */
   for (const auto &file : file_slices) {
     std::string outname =
         "out" + file.first.substr(file.first.find_last_of("/"), string::npos) +
         ".slice";
-    printer::extractSlicesDefine(file.first, outname, file.second);
-    // llvm::errs() << outname;
-    //    std::ofstream out(outname, std::ios_base::out | std::ios_base::trunc);
-    //    out << file.second << endl;
+    std::ofstream Output(outname, std::ios_base::trunc | std::ios_base::out);
+    printer::extractSlicesDefine(file.first, Output, file.second);
   }
+
+  /**
+   *  Slicing of headers based on source information
+   */
   for (const auto &file : header_slices) {
     const std::string filename =
         file.first.substr(file.first.find_last_of("/") + 1, string::npos);
@@ -143,6 +153,20 @@ void copy_files(
     cleanup_includes(file.first, outname, compile_commands_path);
   }
 
+  /**
+   * Slicing into one file based on source information
+   */
+  {
+    const std::string outname = "out/" + outPath + ".c.slice";
+    std::ofstream Output(outname, std::ios_base::ate | std::ios_base::out);
+    for (const auto &file : file_slices) {
+      printer::extractSlicesDefine(file.first, Output, file.second);
+    }
+  }
+
+  /**
+   * Slicing into one file based on lines
+   */
   if (true) {
     std::ofstream out("out/" + outPath + ".c");
     for (const auto &file : file_lines) {

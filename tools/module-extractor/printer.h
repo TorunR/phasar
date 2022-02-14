@@ -115,10 +115,10 @@ void extractSlices(const std::string &FileIn, const std::string &FileOut,
 /**
  *
  * @param FileIn
- * @param FileOut
+ * @param Output
  * @param Slices Slices to put into define code
  */
-void extractSlicesDefine(const std::string &FileIn, const std::string &FileOut,
+void extractSlicesDefine(const std::string &FileIn, std::ofstream &Output,
                          const std::vector<FileSlice> &Slices);
 
 void extractRewrittenFunction(const std::vector<std::string> &Lines,

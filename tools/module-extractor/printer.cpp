@@ -776,7 +776,7 @@ void extractHeaderSlices(const std::string &FileIn, const std::string &FileOut,
   Output << "#endif //" << HeaderName << '\n';
 }
 
-void extractSlicesDefine(const std::string &FileIn, const std::string &FileOut,
+void extractSlicesDefine(const std::string &FileIn, std::ofstream &Output,
                          const std::vector<FileSlice> &Slices) {
   assert(std::is_sorted(Slices.begin(), Slices.end(),
                         [](const FileSlice &a, const FileSlice &b) {
@@ -786,9 +786,9 @@ void extractSlicesDefine(const std::string &FileIn, const std::string &FileOut,
   if (!Input.is_open()) {
     throw std::runtime_error("Could not open input file " + FileIn);
   }
-  std::ofstream Output(FileOut);
+
   if (!Output.is_open()) {
-    throw std::runtime_error("Could not open output file " + FileOut);
+    throw std::runtime_error("Could not write to output file ");
   }
 
   std::vector<std::string> Lines;
