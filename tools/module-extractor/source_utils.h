@@ -15,7 +15,7 @@
 namespace utils {
 
 /**
- * Return the location directy AFTER the end of the token
+ * Return the location direct AFTER the end of the token
  * @param Loc
  * @param SM
  * @param LangOpts
@@ -27,105 +27,40 @@ inline clang::SourceLocation getEndOfToken(clang::SourceLocation Loc,
   return clang::Lexer::getLocForEndOfToken(Loc, 0, SM, LangOpts);
 }
 
-inline clang::PresumedLoc getLocationAsWritten(clang::SourceLocation loc,
-                                               const clang::SourceManager &sm) {
-  return sm.getPresumedLoc(loc);
-}
-
-// https://github.com/llvm/llvm-project/blob/main/clang/lib/CodeGen/CGDebugInfo.cpp#L470
-inline unsigned int getLineFromSourceLocation(const clang::PresumedLoc &loc) {
-  return loc.getLine();
-}
-
-inline bool isInTargetFile(const clang::PresumedLoc &loc,
-                           const clang::SourceManager &sm) {
-  return sm.getMainFileID() == loc.getFileID();
-}
-
-inline bool isInWhitelist(unsigned int line,
-                          const std::set<unsigned int> &lines) {
-  return lines.find(line) != lines.end();
+/**
+ * Returns the Location of Loc as it is written in the Source code. For example
+ * this returns the expansion location of a macro and not the location where it
+ * is defined
+ * @param Loc
+ * @param SM
+ * @return
+ */
+inline clang::PresumedLoc getLocationAsWritten(clang::SourceLocation Loc,
+                                               const clang::SourceManager &SM) {
+  return SM.getPresumedLoc(Loc);
 }
 
 /**
- * inclusive
- * @param lineBegin
- * @param lineEnd
- * @param lines
- * @return
+ * Returns the first semicolon after the given end location
+ * @param EndLoc The location after which to begin searching
+ * @param SM
+ * @param LangOpts
+ * @param Kind The token to search. Defaults to a semicolon
+ * @return The location of the found semicolon or an invalid location if none
+ * could be found
  */
-inline bool isAnyInRangeInWhitelist(unsigned int lineBegin,
-                                    unsigned int lineEnd,
-                                    const std::set<unsigned int> &lines) {
-  assert(lineBegin <= lineEnd);
-  return lines.lower_bound(lineBegin) != lines.upper_bound(lineEnd);
-}
-
-inline bool shouldBeSliced(const clang::Decl *decl,
-                           const clang::SourceManager &sm,
-                           const std::set<unsigned int> &lines) {
-  if (llvm::isa<clang::TranslationUnitDecl>(decl)) {
-    return true;
-  }
-  if (sm.getFileID(sm.getSpellingLoc(decl->getBeginLoc())) !=
-      sm.getMainFileID()) {
-    return false;
-  }
-  // return true;
-  return lines.lower_bound(sm.getPresumedLineNumber(decl->getBeginLoc())) !=
-         lines.upper_bound(sm.getPresumedLineNumber(decl->getEndLoc()));
-}
-
-inline bool shouldBeSliced(const clang::Stmt *stmt,
-                           const clang::SourceManager &sm,
-                           const std::set<unsigned int> &lines) {
-  //  if (sm.getFileID(sm.getSpellingLoc(stmt->getBeginLoc())) !=
-  //      sm.getMainFileID()) {
-  //    return false;
-  //  }
-  if (llvm::isa<clang::ConstantExpr>(stmt) ||
-      llvm::isa<clang::CharacterLiteral>(stmt) ||
-      llvm::isa<clang::IntegerLiteral>(stmt) ||
-      llvm::isa<clang::FloatingLiteral>(stmt) ||
-      llvm::isa<clang::StringLiteral>(stmt) ||
-      llvm::isa<clang::DeclRefExpr>(stmt)) {
-    return true;
-  }
-
-  return lines.lower_bound(sm.getPresumedLineNumber(stmt->getBeginLoc())) !=
-         lines.upper_bound(sm.getPresumedLineNumber(stmt->getEndLoc()));
-}
-
-// Take from clang tidy
-template <typename TokenKind>
-clang::SourceLocation
-findNextToken(clang::SourceLocation Start, const clang::SourceManager &SM,
-              const clang::LangOptions &LangOpts, TokenKind TK) {
-  while (true) {
-    llvm::Optional<clang::Token> CurrentToken =
-        clang::Lexer::findNextToken(Start, SM, LangOpts);
-
-    if (!CurrentToken)
-      return clang::SourceLocation();
-
-    clang::Token PotentialMatch = *CurrentToken;
-    if (PotentialMatch.getKind() == TK)
-      return PotentialMatch.getLocation();
-
-    // If we reach the end of the file, and eof is not the target token, we stop
-    // the loop, otherwise we will get infinite loop (findNextToken will return
-    // eof on eof).
-    if (PotentialMatch.is(clang::tok::eof))
-      return clang::SourceLocation();
-    Start = PotentialMatch.getLastLoc();
-  }
-}
-
 clang::SourceLocation getSemicolonAfterStmtEndLoc(
     const clang::SourceLocation &EndLoc, const clang::SourceManager &SM,
     const clang::LangOptions &LangOpts,
     clang::tok::TokenKind Kind = clang::tok::TokenKind::semi);
 
+/**
+ * Returns the location of the beginning of the previous token
+ * @param Start Location of the current token
+ * @param SM
+ * @param LangOpts
+ * @return
+ */
 clang::SourceLocation
 findPreviousTokenStart(clang::SourceLocation Start,
                        const clang::SourceManager &SM,

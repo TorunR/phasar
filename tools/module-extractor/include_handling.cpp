@@ -8,7 +8,6 @@
 std::vector<std::string>
 get_includes_to_extract(const std::string &filename,
                         const std::unordered_set<std::string> &blacklist) {
-
   // inspired by
   // https://stackoverflow.com/questions/26492513/write-c-regular-expression-to-match-a-include-preprocessing-directive
   // This does not match weird includes containing macros and may get some
@@ -43,10 +42,7 @@ get_includes_to_extract(const std::string &filename,
     if (blacklist.find(trim(match[1].str())) == blacklist.end()) {
       includes.push_back(trim(match.str()));
     }
-    // std::cerr << match.str() << "\n";
-    //  std::cerr << match[1].str() << "\n";
   }
-
   return includes;
 }
 
@@ -86,12 +82,16 @@ void cleanup_includes(const std::string &original_file,
    *
    * 3: Run iwyu
    *
-   * 4: Run fix_include (for some reason iwyu does not include absolute paths
-   * grrr, so this is actually a multi step process. 4.a: copy the file from 2
-   * to the tmp dir. (we cant move here as it could be between filessystems) 4.b
-   * change into the tmp dir 4.c run fix_include 4.d copy the modified source
-   * file to the extracted header location)
+   * 4: Run fix_include (for some reason iwyu does not include absolute paths,
+   * so this is actually a multi step process.)
    *
+   *
+   * 4.a: copy the file from 2 to the tmp dir. (we cant move here as it could be
+   * between filessystems)
+   *
+   * 4.b: run fix_include
+   *
+   * 4.c copy the modified source file to the extracted header location
    *
    * 5: Cleanup temporary files
    *
@@ -132,21 +132,18 @@ void cleanup_includes(const std::string &original_file,
     boost::filesystem::copy_file(
         original_path, tmpname,
         boost::filesystem::copy_options::overwrite_existing);
-    // const auto previous_cp = boost::filesystem::current_path();
-    //  4 b
-    // boost::filesystem::current_path(tmpdir);
-    // 4 c (this should not fail, but we have no way to check it anyway)
+
+    // 4 b (this should not fail, but we have no way to check it anyway)
     const std::string fix_command = "fix_includes.py -p " + tmpdir.native() +
                                     " --nosafe_headers " + tmpname.native() +
                                     " < " + iwyu_output_file;
 
-    // std::cerr << fix_command << std::endl;
     std::system(fix_command.c_str());
-    // boost::filesystem::current_path(previous_cp);
-    // 5 (this should not fail)
+    // 4.c (this should not fail)
     boost::filesystem::copy_file(
         tmpname, header_path,
         boost::filesystem::copy_options::overwrite_existing);
+    // 5 (this should not fail)
     boost::filesystem::remove(tmpname);
     // 5 (this should not fail)
     boost::filesystem::remove(iwyu_output_file);

@@ -15,13 +15,18 @@
 #include <utility>
 
 // Config
+// Should types get sliced
 #define EXTRACT_TYPES (true)
+// Should functions decls get sliced
 #define EXTRACT_FUNCTION_DECLS (true)
+// How many slices should be removed from a function, before a copy of the
+// function gets generated that only contains the code to keep
 #define MIN_FILTERED_FOR_EXTRA_FUNCTION (3)
+// Should types get sliced into headers
 #define EXTRACT_TYPES_INTO_HEADER (true)
 
 namespace printer {
-void DeclPrinter::VisitFunctionDecl(const clang::FunctionDecl *decl) {
+void DeclPrinterFiltering::VisitFunctionDecl(const clang::FunctionDecl *decl) {
   if (!decl->doesThisDeclarationHaveABody()) {
     if (isInSourceFile(decl, SM)) {
       const auto Semicolon =
@@ -107,41 +112,39 @@ void DeclPrinter::VisitFunctionDecl(const clang::FunctionDecl *decl) {
     }
   }
 }
-void DeclPrinter::VisitDecl(const clang::Decl *decl) {
-  if (!decl->isImplicit()) {
-    // TODO
-    // llvm_unreachable("Hit unsupported decl");
-  }
+void DeclPrinterFiltering::VisitDecl(const clang::Decl *decl) {
+  // decl->dump();
 }
 
-void DeclPrinter::VisitTranslationUnitDecl(
+void DeclPrinterFiltering::VisitTranslationUnitDecl(
     const clang::TranslationUnitDecl *decl) {
-  // decl->dump();
   for (const auto &D : decl->decls()) {
     Visit(D);
   }
 }
 
-DeclPrinter::DeclPrinter(const std::set<unsigned int> &Target,
-                         const clang::ASTContext &CTX,
-                         const clang::SourceManager &SM,
-                         const clang::LangOptions &LO)
+DeclPrinterFiltering::DeclPrinterFiltering(const std::set<unsigned int> &Target,
+                                           const clang::ASTContext &CTX,
+                                           const clang::SourceManager &SM,
+                                           const clang::LangOptions &LO)
     : TargetLines(Target), CTX(CTX), SM(SM), LO(LO) {}
-std::pair<std::vector<Slice>, std::vector<Slice>> DeclPrinter::GetSlices(
-    const clang::Decl *Decl, const std::set<unsigned int> &TargetLines,
-    const clang::ASTContext &CTX, const clang::SourceManager &SM,
-    const clang::LangOptions &LO) {
-  DeclPrinter Visitor(TargetLines, CTX, SM, LO);
+std::pair<std::vector<Slice>, std::vector<Slice>>
+DeclPrinterFiltering::GetSlices(const clang::Decl *Decl,
+                                const std::set<unsigned int> &TargetLines,
+                                const clang::ASTContext &CTX,
+                                const clang::SourceManager &SM,
+                                const clang::LangOptions &LO) {
+  DeclPrinterFiltering Visitor(TargetLines, CTX, SM, LO);
   Visitor.Visit(Decl);
   return {Visitor.Slices, Visitor.HeaderSlices};
 }
 std::pair<std::vector<printer::FileSlice>, std::vector<printer::FileSlice>>
-DeclPrinter::GetFileSlices(const clang::Decl *Decl,
-                           const std::set<unsigned int> &TargetLines,
-                           const clang::ASTContext &CTX) {
+DeclPrinterFiltering::GetFileSlices(const clang::Decl *Decl,
+                                    const std::set<unsigned int> &TargetLines,
+                                    const clang::ASTContext &CTX) {
   const auto &SM = CTX.getSourceManager();
-  const auto Slices =
-      DeclPrinter::GetSlices(Decl, TargetLines, CTX, SM, CTX.getLangOpts());
+  const auto Slices = DeclPrinterFiltering::GetSlices(Decl, TargetLines, CTX,
+                                                      SM, CTX.getLangOpts());
   std::pair<std::vector<printer::FileSlice>, std::vector<printer::FileSlice>>
       Result;
   Result.first.reserve(Slices.first.size());
@@ -154,12 +157,8 @@ DeclPrinter::GetFileSlices(const clang::Decl *Decl,
   }
   return Result;
 }
-void DeclPrinter::VisitVarDecl(const clang::VarDecl *Decl) {
-  //  Decl->dump();
-  //  Decl->getSourceRange().getEnd().dump(SM);
-  //  Decl->getEndLoc().dump(SM);
+void DeclPrinterFiltering::VisitVarDecl(const clang::VarDecl *Decl) {
   if (isInSourceFile(Decl, SM)) {
-    // Decl->dump();
     const auto Semicolon = utils::getSemicolonAfterStmtEndLoc(
         Decl->getSourceRange().getEnd(), SM, LO);
     Slice S;
@@ -174,12 +173,11 @@ void DeclPrinter::VisitVarDecl(const clang::VarDecl *Decl) {
 
     if (!isAnyInWhitelist(Decl, TargetLines, SM)) {
       S.NeedsDefine = true;
-      // Decl->dump();
     }
     Slices.push_back(S);
   }
 }
-void DeclPrinter::VisitTypeDecl(const clang::TypeDecl *Decl) {
+void DeclPrinterFiltering::VisitTypeDecl(const clang::TypeDecl *Decl) {
   if (isInSourceFile(Decl, SM)) {
     const auto Semicolon =
         utils::getSemicolonAfterStmtEndLoc(Decl->getEndLoc(), SM, LO);
@@ -236,42 +234,13 @@ bool StmtPrinterFiltering::VisitCompoundStmt(const clang::CompoundStmt *Stmt) {
   return true;
 }
 StmtPrinterFiltering::StmtPrinterFiltering(
-    const std::set<unsigned int> &TargetLines, const clang::ASTContext &CTX,
-    const clang::SourceManager &SM, const clang::LangOptions &LO)
-    : TargetLines(TargetLines), CTX(CTX), SM(SM), LO(LO) {}
+    const std::set<unsigned int> &TargetLines, const clang::SourceManager &SM,
+    const clang::LangOptions &LO)
+    : TargetLines(TargetLines), SM(SM), LO(LO) {}
 bool StmtPrinterFiltering::VisitWhileStmt(const clang::WhileStmt *Stmt) {
   if (isAnyInWhitelist(Stmt, TargetLines, SM)) {
-
-    //    Stmt->getBeginLoc().dump(SM);
-    //    //   // Stmt->getBeginLoc()).dump(SM);
-    //    //    SM.getExpansionLoc(Stmt->getBeginLoc()).dump(SM);
-    //    //    Stmt->getEndLoc().dump(SM);
-    //    //    //Stmt->getEndLoc()).dump(SM);
-    //    //    SM.getExpansionLoc(Stmt->getEndLoc()).dump(SM);
-    //    Stmt->getBody()->getBeginLoc().dump(SM);
-    //    SM.getExpansionLoc(Stmt->getBody()->getBeginLoc()).dump(SM);
-    //    utils::findPreviousTokenStart(SM.getFileLoc(Stmt->getBody()->getBeginLoc()),
-    //                                  SM, LO)
-    //        .dump(SM);
-    //
-    //    utils::getEndOfToken(
-    //        utils::findPreviousTokenStart(
-    //            SM.getFileLoc(Stmt->getBody()->getBeginLoc()), SM, LO),
-    //        SM, LO)
-    //        .dump(SM);
-    //    SM.getSpellingLoc(
-    //          utils::getEndOfToken(utils::findPreviousTokenStart(
-    //                                   Stmt->getBody()->getBeginLoc(), SM,
-    //                                   LO),
-    //                               SM, LO))
-    //        .dump(SM);
-
     Slices.emplace_back(Slice::generateFromStartAndNext(
         Stmt->getBeginLoc(), Stmt->getBody()->getBeginLoc(), SM, LO));
-    //        SM.getSpellingLoc(Stmt->getBeginLoc()),
-    //        utils::getEndOfToken(utils::findPreviousTokenStart(
-    //                                 Stmt->getBody()->getBeginLoc(), SM, LO),
-    //                             SM, LO));
     PrintStmt(Stmt->getBody(), true);
     return true;
   }
@@ -334,26 +303,11 @@ bool StmtPrinterFiltering::VisitSwitchStmt(const clang::SwitchStmt *Stmt) {
   return false;
 }
 
-// bool StmtPrinterFiltering::VisitReturnStmt(const clang::ReturnStmt *Stmt) {
-//   if (isAnyInWhitelist(Stmt, TargetLines, SM)) {
-//     Slices.emplace_back(
-//         SM.getExpansionRange(Stmt->getBeginLoc()).getBegin(),
-//         utils::getEndOfToken(SM.getExpansionRange(Stmt->getEndLoc()).getEnd(),
-//                              SM, LO));
-//     const auto Semicolon =
-//         utils::getSemicolonAfterStmtEndLoc(Stmt->getEndLoc(), SM, LO);
-//     assert(Semicolon.isValid());
-//     Slices.emplace_back(SM.getExpansionRange(Stmt->getEndLoc()).getBegin(),
-//                         utils::getEndOfToken(Semicolon, SM, LO));
-//     return true;
-//   }
-//   return false;
-// }
 std::vector<Slice> StmtPrinterFiltering::GetSlices(
     const clang::Stmt *Stmt, const std::set<unsigned int> &TargetLines,
     const clang::ASTContext &CTX, const clang::SourceManager &SM,
     const clang::LangOptions &LO, unsigned *filtered) {
-  StmtPrinterFiltering Visitor(TargetLines, CTX, SM, LO);
+  StmtPrinterFiltering Visitor(TargetLines, SM, LO);
   Visitor.Visit(Stmt);
   if (filtered != nullptr) {
     *filtered = Visitor.Filtered;
@@ -459,13 +413,6 @@ bool StmtPrinterFiltering::VisitDefaultStmt(const clang::DefaultStmt *Stmt) {
   return false;
 }
 
-// bool StmtPrinterFiltering::VisitSwitchCase(const clang::SwitchCase *Stmt) {
-//   if(isAnyInWhitelist(Stmt, TargetLines, SM)) {
-//     //Slices.emplace_back(Slice::generateFromStartAndNext(Stmt->getBeginLoc(),
-//     Stmt.g)) return true;
-//   }
-//   return false;
-// }
 
 printer::Slice::Slice(clang::SourceLocation Begin, clang::SourceLocation End,
                       bool NeedsDefine)
@@ -492,10 +439,6 @@ Slice::Slice(clang::SourceLocation Begin, clang::SourceLocation End,
   assert(End.isValid());
 }
 Slice::Slice() {}
-FileOffset::FileOffset(unsigned int Line, unsigned int Column)
-    : Line(Line), Column(Column) {
-  assert(Line > 0 && Column > 0);
-}
 
 std::ostream &operator<<(std::ostream &os, const FileOffset &offset) {
   os << "[" << offset.Line << ":" << offset.Column << "]";
@@ -575,10 +518,7 @@ void mergeSlices(std::vector<FileSlice> &Slices) {
 void mergeAndSplitSlices(std::vector<FileSlice> &Slices) {
   assert(!Slices.empty());
 
-  std::vector<FileSlice> Keep;
   std::vector<FileSlice> Tmp;
-  std::copy_if(Slices.begin(), Slices.end(), std::back_inserter(Keep),
-               [](const auto &Slice) { return !Slice.NeedsDefine; });
   std::copy_if(Slices.begin(), Slices.end(), std::back_inserter(Tmp),
                [](const auto &Slice) { return Slice.NeedsDefine; });
   Slices.clear();
@@ -587,92 +527,9 @@ void mergeAndSplitSlices(std::vector<FileSlice> &Slices) {
   if (!Slices.empty()) {
     mergeSlices(Slices);
   }
-  if (!Keep.empty()) {
-    mergeSlices(Keep);
-  }
 }
 
-void extractSlices(const std::string &FileIn, const std::string &FileOut,
-                   const std::vector<FileSlice> &Slices) {
-  assert(std::is_sorted(Slices.begin(), Slices.end(),
-                        [](const FileSlice &a, const FileSlice &b) {
-                          return a.Begin < b.Begin;
-                        }));
-  std::ifstream Input(FileIn);
-  if (!Input.is_open()) {
-    throw std::runtime_error("Could not open input file " + FileIn);
-  }
-  std::ofstream Output(FileOut);
-  if (!Output.is_open()) {
-    throw std::runtime_error("Could not open output file " + FileOut);
-  }
 
-  std::string Line;
-  unsigned int LineNumber = 0;
-  auto PreviousSlice = Slices.end();
-  auto CurrentSlice = Slices.begin();
-  while (std::getline(Input, Line)) {
-    while (true) {
-      // Case: We are in text befor the slice
-      if (CurrentSlice == Slices.end() ||
-          CurrentSlice->Begin.GetSliceLine() > LineNumber) {
-        if (CurrentSlice != Slices.end() &&
-            CurrentSlice->Begin.GetSliceLine() == (LineNumber + 1)) {
-          Output << '\n';
-        }
-        break;
-      }
-      // Handle the following cases:
-      // We are in a completely sliced line, excluding the end or begin: Copy
-      // the complete line
-      // We are in the first line: Pad from the previous slice with spaces
-      // and add the text
-      // We are in the last line: Add text, check if
-      // others slices are needed in the same line
-      if (CurrentSlice->Begin.GetSliceLine() < LineNumber &&
-          CurrentSlice->End.GetSliceLine() > LineNumber) {
-        Output << Line << '\n';
-        break;
-      }
-      if (CurrentSlice->Begin.GetSliceLine() == LineNumber) {
-        if (PreviousSlice != Slices.end() &&
-            PreviousSlice->End.GetSliceLine() == LineNumber) {
-          // We need to pad only after the last slice
-          for (unsigned int I = 0; I < CurrentSlice->Begin.GetSliceColumn() -
-                                           PreviousSlice->End.GetSliceColumn();
-               I++) {
-            Output << ' ';
-          }
-        } else {
-          for (unsigned int I = 0; I < CurrentSlice->Begin.GetSliceColumn();
-               I++) {
-            Output << ' ';
-          }
-        }
-        // Copy our slice
-        if (CurrentSlice->End.GetSliceLine() == LineNumber) {
-          Output << Line.substr(CurrentSlice->Begin.GetSliceColumn(),
-                                CurrentSlice->End.GetSliceColumn() -
-                                    CurrentSlice->Begin.GetSliceColumn());
-        } else {
-          Output << Line.substr(CurrentSlice->Begin.GetSliceColumn()) << '\n';
-          break;
-        }
-      } else {
-        // Handle end case
-        Output << Line.substr(0, CurrentSlice->End.GetSliceColumn());
-      }
-
-      PreviousSlice = CurrentSlice;
-      CurrentSlice++;
-      if (CurrentSlice == Slices.end()) {
-        Output << '\n';
-        break;
-      }
-    }
-    LineNumber++;
-  }
-}
 bool notOnlyWhitespace(const std::string &Str) {
   return std::any_of(Str.begin(), Str.end(),
                      [](unsigned char c) { return !isspace(c); });
@@ -709,7 +566,7 @@ void extractHeaderSlices(const std::string &FileIn, const std::string &FileOut,
   auto CurrentSlice = Slices.begin();
   while (std::getline(Input, Line)) {
     while (true) {
-      // Case: We are in text befor the slice
+      // Case: We are in text before the slice
       if (CurrentSlice == Slices.end() ||
           CurrentSlice->Begin.GetSliceLine() > LineNumber) {
         break;

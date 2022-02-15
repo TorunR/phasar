@@ -1,7 +1,7 @@
 #include "source_utils.h"
 
 namespace utils {
-// Taken from clang tidy
+// The functions here are taken and modified from clang tidy
 llvm::Optional<clang::Token>
 findNextTokenSkippingComments(clang::SourceLocation Start,
                               const clang::SourceManager &SM,
@@ -27,10 +27,10 @@ llvm::Optional<clang::Token> findNextToken(clang::SourceLocation Start,
   return CurrentToken;
 }
 
-// TODO: maybe change handling of macros
 // Given a Stmt which does not include it's semicolon this method returns the
 // SourceLocation of the semicolon.
 // Taken from clang tidy
+// The handling of macros may still not handle all edge cases correctly
 clang::SourceLocation getSemicolonAfterStmtEndLoc(
     const clang::SourceLocation &EndLoc, const clang::SourceManager &SM,
     const clang::LangOptions &LangOpts, clang::tok::TokenKind Kind) {
@@ -62,24 +62,26 @@ clang::SourceLocation getSemicolonAfterStmtEndLoc(
       findNextToken(EndLoc, Kind, SM, LangOpts);
 
   // Testing for semicolon again avoids some issues with macros.
-  if (NextTok && NextTok->is(Kind))
+  if (NextTok && NextTok->is(Kind)) {
     return NextTok->getLocation();
+  }
 
-  return clang::SourceLocation();
+  return {};
 }
 
 clang::SourceLocation
 findPreviousTokenStart(clang::SourceLocation Start,
                        const clang::SourceManager &SM,
                        const clang::LangOptions &LangOpts) {
-  if (Start.isInvalid() || Start.isMacroID())
-    return clang::SourceLocation();
+  if (Start.isInvalid() || Start.isMacroID()) {
+    return {};
+  }
 
   clang::SourceLocation BeforeStart = Start.getLocWithOffset(-1);
-  if (BeforeStart.isInvalid() || BeforeStart.isMacroID())
-    return clang::SourceLocation();
+  if (BeforeStart.isInvalid() || BeforeStart.isMacroID()) {
+    return {};
+  }
 
   return clang::Lexer::GetBeginningOfToken(BeforeStart, SM, LangOpts);
 }
-
 } // namespace utils

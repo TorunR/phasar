@@ -6,12 +6,8 @@
 #include <string>
 #include <vector>
 
-namespace clang {
-class SourceLocation;
-};
-
 /**
- *
+ * Get the slices for the file 'file' and the given target_lines
  * @param file
  * @param target_lines
  * @return  The first vector are the file slices, the second the slices for the

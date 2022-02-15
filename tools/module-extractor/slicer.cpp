@@ -302,9 +302,6 @@ void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
     for (const auto &s : p.second) {
       if (first) {
         auto line = psr::getLineFromIR(p.first);
-        // llvm::dbgs() << "TEst jr\n";
-        // llvm::dbgs() << psr::getSrcCodeFromIR(p.first) << "\t" << line <<
-        // "\n";
         auto end_line = psr::getFunctionHeaderLines(p.first);
         for (unsigned int l = line; l <= end_line; ++l) {
           file_lines[file].insert(l);
@@ -340,7 +337,6 @@ void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
             if (auto *scope =
                     dyn_cast<DILexicalBlock>(inst->getDebugLoc().getScope())) {
               block_lines.insert(line);
-              // TODO jr
               file_lines[file].insert(line);
               file_lines[file].insert(scope->getLine());
             }
@@ -359,13 +355,6 @@ void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
         }
       }
     }
-    //    auto lines = add_block(file, &block_lines);
-    //    for (auto line : *lines) {
-    //      file_lines[file].insert(line);
-    //    }
-    // TODO jr
-    // std::string slices = add_block(file, &file_lines[file]);
-    // file_slices.emplace(file, slices);
   }
   for (const auto &f : file_lines) {
     const auto slices = add_block(f.first, &f.second);
@@ -469,6 +458,12 @@ std::string createSlice(string target, const set<string> &entrypoints,
   return "";
 }
 
+/**
+ * Reads a blacklist of headers not to slice from the file 'path'. This file
+ * needs to have one blacklisted header in each line
+ * @param path Path to the file to read or 'none' if no blacklist is used
+ * @return A set containing headers not to slice
+ */
 unordered_set<string> read_blacklist(const string &path) {
   if (path == "none") {
     return {};
