@@ -99,7 +99,7 @@ private:
   const std::set<string> &entrypoints;
 };
 
-void copy_files(map<string, set<unsigned int>> &file_lines) {
+void copy_files(map<string, set<unsigned int>> &file_lines, string outPath) {
   for (const auto &file : file_lines) {
     std::ifstream in(file.first);
     std::ofstream out(
@@ -117,7 +117,7 @@ void copy_files(map<string, set<unsigned int>> &file_lines) {
     out.close();
   }
   if (true) {
-    std::ofstream out("out/command.c");
+    std::ofstream out("out/" + outPath + ".c");
     for (const auto &file : file_lines) {
       std::ifstream in("out/" + file.first.substr(file.first.find_last_of("/"),
                                                   string::npos));
@@ -130,7 +130,7 @@ void copy_files(map<string, set<unsigned int>> &file_lines) {
           }
           last_empty = true;
         } else {
-          out << line;
+          out << line << endl;
           last_empty = false;
         }
       }
@@ -141,7 +141,7 @@ void copy_files(map<string, set<unsigned int>> &file_lines) {
 
 template <typename AnalysisDomainTy>
 void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
-                     LLVMBasedBackwardsICFG &cg) {
+                     LLVMBasedBackwardsICFG &cg, string outPath) {
   map<const Function *, set<const llvm::Value *>> slice_instruction;
   llvm::dbgs() << "SOLVING DONE\n";
   for (auto *const module : DB.getAllModules()) {
@@ -305,11 +305,11 @@ void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
       file_lines[file].insert(line);
     }
   }
-  copy_files(file_lines);
+  copy_files(file_lines, outPath);
 }
 
 std::string createSlice(string target, const set<string> &entrypoints,
-                        const vector<Term> &terms) {
+                        const vector<Term> &terms,string outPath) {
   ProjectIRDB DB({std::move(target)}, IRDBOptions::WPA);
   initializeLogger(false);
   //    initializeLogger(true);
@@ -387,14 +387,14 @@ std::string createSlice(string target, const set<string> &entrypoints,
   IFDSSolver solver(slicer);
   solver.solve();
   ofstream out;
-  out.open("out/graph.dot");
+//  out.open("out/graph.dot");
   //  solver.emitESGAsDot(out);
   out.close();
-  out.open("out/results.txt");
+//  out.open("out/results.txt");
   //  solver.dumpResults(out);
   out.close();
   cout << "\n";
-  process_results(DB, solver, cg);
+  process_results(DB, solver, cg, outPath);
   return "";
 }
 
@@ -412,67 +412,27 @@ int main(int argc, const char **argv) {
       }
     }
   }
-  if (argc < 3) {
+  if (argc < 5) {
     cout << "Please provide the correct params" << endl;
     // TODO USAGE
     return -1;
   }
-  std::cout << "Current path is " << bofs::current_path() << '\n';
+//  std::cout << "Current path is " << bofs::current_path() << '\n';
   const auto target = argv[1];
-  //  const auto target = "./targets/w_defects.ll";
-  //    const auto target = "./targets/main_linked.ll";
-  //    const auto target = "./targets/ex.ll";
-  //    const auto target =
-  //    "/media/Volume/Arbeit/Arbeit/code/slicing-eval/memcached/memcached.ll";
-  //  const auto target = "./targets/toSlice.ll";
-  //  const auto target = "./targets/min_ex_ssa.ll";
-  //  const auto target = "./targets/parson_linked.ll";
-  //  const auto target =
-  //  "/media/Volume/Arbeit/Arbeit/code/slicing-eval/git/git-linked.ll";
-  //  const auto entryfunction = "main";
-  //    const auto entryfunction = "parse_command";
-  //  initializeLogger(true);
-  //    std::ifstream  in("targets/locations_json.json");
-  //    std::ifstream in("targets/locations_memcached_command.json");
-  //    std::ifstream in("targets/locations_memcached_single.json");
-  //  std::ifstream in("targets/toSlice.json");
-  //  std::ifstream in("targets/min_ex.json");
-  //  std::ifstream  in("targets/parson_serialize.json");
   std::ifstream in(argv[2]);
   json j;
   in >> j;
   auto terms = j.get<vector<Term>>();
+  string outPath = argv[3];
   set<std::string> entrypoints;
-  for (int i = 3; i < argc; ++i) {
+  for (int i = 4; i < argc; ++i) {
     entrypoints.insert(argv[i]);
     cout << argv[i] << endl;
   }
   std::chrono::steady_clock::time_point begin =
       std::chrono::steady_clock::now();
-  createSlice(target, entrypoints, terms);
+  createSlice(target, entrypoints, terms,outPath);
   std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-//      compare_slice(
-//          "/home/torun/Volume/Arbeit/Arbeit/code/slicing-eval/memcached-stats/stats.c",
-//          "/media/Volume/Arbeit/Arbeit/code/phasar/out/command.c");
-  compare_slice("/home/torun/Volume/Arbeit/Arbeit/code/slicing-eval/"
-                "memcached-command/command.c",
-                "/media/Volume/Arbeit/Arbeit/code/phasar/out/command.c");
-//        compare_slice(
-//        "/home/torun/Volume/Arbeit/Arbeit/code/slicing-eval/smaller/the_silver_searcher/src/ignore.c",
-//            "/media/Volume/Arbeit/Arbeit/code/phasar/out/ignore.c");
-//    compare_slice(
-//        "/media/Volume/Arbeit/Arbeit/code/slicing-eval/smaller/parson/parse.c",
-//        "/media/Volume/Arbeit/Arbeit/code/phasar/out/parson.c");
-//      compare_slice(
-//          "/media/Volume/Arbeit/Arbeit/code/slicing-eval/smaller/parson/serialize.c",
-//          "/media/Volume/Arbeit/Arbeit/code/phasar/out/parson.c");
-//        compare_slice("/media/Volume/Arbeit/Arbeit/code/slicing-eval/smaller/inotify-tools/libinotifytools/src/stats.c",
-//                      "/media/Volume/Arbeit/Arbeit/code/phasar/out/inotifytools.c");
-//        compare_slice("/media/Volume/Arbeit/Arbeit/code/slicing-eval/smaller/fping/src/stats.c",
-//                      "/media/Volume/Arbeit/Arbeit/code/phasar/out/fping.c");
-//        compare_slice(
-//          "/media/Volume/Arbeit/Arbeit/code/slicing-eval/redis/src/cluster_manager.c",
-//          "/media/Volume/Arbeit/Arbeit/code/phasar/out/command.c");
   std::cout << "Time difference = "
             << std::chrono::duration_cast<std::chrono::microseconds>(end -
                                                                      begin)
@@ -490,12 +450,10 @@ int main(int argc, const char **argv) {
       << "Time difference = "
       << std::chrono::duration_cast<std::chrono::minutes>(end - begin).count()
       << "[m]" << std::endl;
+  std::cout << "Extracted code is in out/" + outPath + ".c" << std::endl;
   return 0;
 }
-// TODO:
-// Recursive Control dependency backward - branch conditions
-// branch conditions forward -> include block
-// Coll Declarations
+
 
 std::set<SlicerFact> NormalFlowFunction::computeTargets(SlicerFact source) {
   set<SlicerFact> facts;
@@ -677,51 +635,6 @@ RetFlowFunction<ICFG_T>::computeTargets(SlicerFact source) {
   return facts;
 }
 
-void compare_slice(string original, string module) {
-  set<string> original_lines;
-  set<string> module_lines;
-  vector<string> intersection;
-  vector<string> missing;
-  vector<string> additional;
-  {
-    std::ifstream in(original);
-    std::string line;
-    int line_nr = 1;
-    while (std::getline(in, line)) {
-      original_lines.insert(line);
-    }
-  }
-  {
-    std::ifstream in(module);
-    std::string line;
-    while (std::getline(in, line)) {
-      module_lines.insert(line);
-    }
-  }
-  set_intersection(original_lines.begin(), original_lines.end(),
-                   module_lines.begin(), module_lines.end(),
-                   std::inserter(intersection, intersection.begin()));
-  set_difference(original_lines.begin(), original_lines.end(),
-                 module_lines.begin(), module_lines.end(),
-                 std::inserter(missing, missing.begin()));
-  set_difference(module_lines.begin(), module_lines.end(),
-                 original_lines.begin(), original_lines.end(),
-
-                 std::inserter(additional, additional.begin()));
-
-  for (auto m : missing) {
-    cout << m << "\n";
-  }
-  cout << "====================================\n";
-  for (auto a : additional) {
-    cout << a << "\n";
-  }
-  cout << "Original Size is:\t" << original_lines.size() << endl;
-  cout << "Intersection Size is:\t" << intersection.size() << endl;
-  cout << "Additional Size is:\t" << additional.size() << endl;
-  cout << "Missing Size is:\t" << missing.size() << endl;
-  cout << "\n\n\n";
-}
 class RewriteSourceVisitor
     : public clang::RecursiveASTVisitor<RewriteSourceVisitor> {
 public:
@@ -813,16 +726,7 @@ shared_ptr<std::set<unsigned int>>
 add_block(std::string file, std::set<unsigned int> *target_lines) {
   string err = "ERROR_MY";
   auto db = clang::tooling::CompilationDatabase::autoDetectFromDirectory(
-//      "/home/torun/Volume/Arbeit/Arbeit/code/slicing-eval/smaller/parson",err
-//      "/media/Volume/Arbeit/Arbeit/code/slicing-eval/smaller/the_silver_searcher",err
-//      "/media/Volume/Arbeit/Arbeit/code/slicing-eval/smaller/inotify-tools",err
-//  );
-//  auto db = clang::tooling::CompilationDatabase::autoDetectFromDirectory(
-//      "/media/Volume/Arbeit/Arbeit/code/slicing-eval/smaller/fping",err
-//  );
-      "/media/Volume/Arbeit/Arbeit/code/slicing-eval/memcached-command", err);
-//    auto db = clang::tooling::CompilationDatabase::autoDetectFromDirectory(
-//      "/media/Volume/Arbeit/Arbeit/code/slicing-eval/redis", err);
+      boost::filesystem::path(file).parent_path().string(), err);
   std::vector<std::string> Sources;
   Sources.push_back(file);
   clang::tooling::ClangTool Tool(*db, Sources);
