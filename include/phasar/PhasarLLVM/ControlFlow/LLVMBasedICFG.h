@@ -30,6 +30,13 @@
 #include "boost/container/flat_set.hpp"
 #include "boost/graph/adjacency_list.hpp"
 
+#include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/InstrTypes.h"
+#include "llvm/IR/Instruction.h"
+#include "llvm/IR/Module.h"
+
 #include "phasar/PhasarLLVM/ControlFlow/ICFG.h"
 #include "phasar/PhasarLLVM/ControlFlow/LLVMBasedCFG.h"
 #include "phasar/PhasarLLVM/Pointer/LLVMPointsToInfo.h"
@@ -54,6 +61,9 @@ class LLVMBasedICFG
       public virtual LLVMBasedCFG {
   friend class LLVMBasedBackwardsICFG;
 
+  using GlobalCtorTy = std::multimap<size_t, llvm::Function *>;
+  using GlobalDtorTy = std::multimap<size_t, llvm::Function *, std::greater<>>;
+
 private:
   ProjectIRDB &IRDB;
   CallGraphAnalysisType CGType;
@@ -63,22 +73,23 @@ private:
   LLVMTypeHierarchy *TH;
   LLVMPointsToInfo *PT;
   std::unique_ptr<Resolver> Res;
-  std::unordered_set<const llvm::Function *> VisitedFunctions;
-  /// Keeps track of the call-sites already resolved
-  // std::vector<const llvm::Instruction *> CallStack;
+  llvm::DenseSet<const llvm::Function *> VisitedFunctions;
+  std::unordered_set<llvm::Function *> UserEntryPoints;
 
-  // Keeps track of the type graph already constructed
-  // TypeGraph_t typegraph;
+  GlobalCtorTy GlobalCtors;
+  GlobalDtorTy GlobalDtors;
 
-  // Any types that could be initialized outside of the module
-  // std::set<const llvm::StructType*> unsound_types;
+  llvm::Function *GlobalCleanupFn = nullptr;
+
+  llvm::SmallDenseMap<const llvm::Module *, llvm::Function *>
+      GlobalRegisteredDtorsCaller;
 
   // The worklist for direct callee resolution.
-  std::stack<const llvm::Function *> FunctionWL;
+  std::vector<const llvm::Function *> FunctionWL;
 
   // Map indirect calls to the number of possible targets found for it. Fixpoint
   // is not reached when more targets are found.
-  std::unordered_map<const llvm::Instruction *, unsigned> IndirectCalls;
+  llvm::DenseMap<const llvm::Instruction *, unsigned> IndirectCalls;
   // The VertexProperties for our call-graph.
   struct VertexProperties {
     const llvm::Function *F = nullptr;
@@ -119,14 +130,45 @@ private:
 
   bool constructDynamicCall(const llvm::Instruction *I, Resolver &Resolver);
 
-  std::unique_ptr<Resolver> makeResolver(ProjectIRDB &IRDB,
-                                         CallGraphAnalysisType CGT,
-                                         LLVMTypeHierarchy &TH,
-                                         LLVMPointsToInfo &PT);
+  std::unique_ptr<Resolver>
+  makeResolver(ProjectIRDB &IRDB, LLVMTypeHierarchy &TH, LLVMPointsToInfo &PT);
+
+  template <typename MapTy>
+  static void insertGlobalCtorsDtorsImpl(MapTy &Into, const llvm::Module *M,
+                                         llvm::StringRef Fun) {
+    const auto *Gtors = M->getGlobalVariable(Fun);
+    if (Gtors == nullptr) {
+      return;
+    }
+
+    if (const auto *FunArray = llvm::dyn_cast<llvm::ArrayType>(
+            Gtors->getType()->getPointerElementType())) {
+      if (const auto *ConstFunArray =
+              llvm::dyn_cast<llvm::ConstantArray>(Gtors->getInitializer())) {
+        for (const auto &Op : ConstFunArray->operands()) {
+          if (const auto *FunDesc = llvm::dyn_cast<llvm::ConstantStruct>(Op)) {
+            auto *Fun = llvm::dyn_cast<llvm::Function>(FunDesc->getOperand(1));
+            const auto *Prio =
+                llvm::dyn_cast<llvm::ConstantInt>(FunDesc->getOperand(0));
+            if (Fun && Prio) {
+              auto PrioInt = size_t(Prio->getLimitedValue(SIZE_MAX));
+              Into.emplace(PrioInt, Fun);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  llvm::Function *buildCRuntimeGlobalDtorsModel(llvm::Module &M);
+  const llvm::Function *buildCRuntimeGlobalCtorsDtorsModel(llvm::Module &M);
 
   struct dependency_visitor;
 
 public:
+  static constexpr llvm::StringLiteral GlobalCRuntimeModelName =
+      "__psrCRuntimeGlobalCtorsModel";
+
   /**
    * Why a multimap?  A given instruction might have multiple target functions.
    * For example, if the points-to analysis indicates that a pointer could
@@ -138,11 +180,17 @@ public:
   LLVMBasedICFG(ProjectIRDB &IRDB, CallGraphAnalysisType CGType,
                 const std::set<std::string> &EntryPoints = {},
                 LLVMTypeHierarchy *TH = nullptr, LLVMPointsToInfo *PT = nullptr,
-                Soundness S = Soundness::SOUNDY);
+                Soundness S = Soundness::Soundy, bool IncludeGlobals = true);
 
-  LLVMBasedICFG(const LLVMBasedICFG &);
+  LLVMBasedICFG(const LLVMBasedICFG &ICF);
+
+  LLVMBasedICFG &operator=(const LLVMBasedICFG &) = delete;
 
   ~LLVMBasedICFG() override;
+
+  [[nodiscard]] const llvm::Function *getFirstGlobalCtorOrNull() const;
+
+  [[nodiscard]] const llvm::Function *getLastGlobalDtorOrNull() const;
 
   /**
    * \return all of the functions in the IRDB, this may include some not in the
@@ -212,6 +260,10 @@ public:
   [[nodiscard]] std::set<const llvm::Function *>
   getCalleesOfCallAt(const llvm::Instruction *N) const override;
 
+  void forEachCalleeOfCallAt(
+      const llvm::Instruction *I,
+      llvm::function_ref<void(const llvm::Function *)> Callback) const;
+
   /**
    * \return all caller statements/nodes of a given method.
    */
@@ -227,12 +279,6 @@ public:
   [[nodiscard]] std::set<const llvm::Instruction *>
   getReturnSitesOfCallAt(const llvm::Instruction *N) const override;
 
-  [[nodiscard]] std::vector<const llvm::Function *>
-  getGlobalCtors() const override;
-
-  [[nodiscard]] std::vector<const llvm::Function *>
-  getGlobalDtors() const override;
-
   [[nodiscard]] std::set<const llvm::Instruction *>
   allNonCallStartNodes() const override;
 
@@ -244,7 +290,7 @@ public:
   void print(std::ostream &OS = std::cout) const override;
 
   void printAsDot(std::ostream &OS = std::cout,
-                  bool printEdgeLabels = true) const;
+                  bool PrintEdgeLabels = true) const;
 
   void printInternalPTGAsDot(std::ostream &OS = std::cout) const;
 
@@ -254,11 +300,45 @@ public:
 
   void printAsJson(std::ostream &OS = std::cout) const;
 
-  [[nodiscard]] unsigned getNumOfVertices();
+  /// Create an IR based JSON export of the whole ICFG.
+  ///
+  /// Note: The exported JSON contains a list of all edges in this ICFG
+  [[nodiscard]] nlohmann::json exportICFGAsJson() const;
 
-  [[nodiscard]] unsigned getNumOfEdges();
+  /// Create a JSON export of the whole ICFG similar to exportICFGAsJson()
+  /// enriched with source-code information on every edge and ignoring debug
+  /// instructions
+  [[nodiscard]] nlohmann::json exportICFGAsSourceCodeJson() const;
+
+  [[nodiscard]] unsigned getNumOfVertices() const;
+
+  [[nodiscard]] unsigned getNumOfEdges() const;
 
   std::vector<const llvm::Function *> getDependencyOrderedFunctions();
+
+  [[nodiscard]] const llvm::Function *
+  getRegisteredDtorsCallerOrNull(const llvm::Module *Mod);
+
+  template <typename Fn> void forEachGlobalCtor(Fn &&F) const {
+    for (auto [Prio, Fun] : GlobalCtors) {
+      std::invoke(F, static_cast<const llvm::Function *>(Fun));
+    }
+  }
+
+  template <typename Fn> void forEachGlobalDtor(Fn &&F) const {
+    for (auto [Prio, Fun] : GlobalDtors) {
+      std::invoke(F, static_cast<const llvm::Function *>(Fun));
+    }
+  }
+
+protected:
+  void collectGlobalCtors() final;
+
+  void collectGlobalDtors() final;
+
+  void collectGlobalInitializers() final;
+
+  void collectRegisteredDtors() final;
 };
 
 } // namespace psr

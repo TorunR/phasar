@@ -34,12 +34,12 @@ IFDSProtoAnalysis::IFDSProtoAnalysis(const ProjectIRDB *IRDB,
                                      LLVMPointsToInfo *PT,
                                      std::set<std::string> EntryPoints)
     : IFDSTabulationProblem(IRDB, TH, ICF, PT, std::move(EntryPoints)) {
-  IFDSProtoAnalysis::ZeroValue = createZeroValue();
+  IFDSProtoAnalysis::ZeroValue = IFDSProtoAnalysis::createZeroValue();
 }
 
 IFDSProtoAnalysis::FlowFunctionPtrType
 IFDSProtoAnalysis::getNormalFlowFunction(IFDSProtoAnalysis::n_t Curr,
-                                         IFDSProtoAnalysis::n_t Succ) {
+                                         IFDSProtoAnalysis::n_t /*Succ*/) {
   if (const auto *Store = llvm::dyn_cast<llvm::StoreInst>(Curr)) {
     return make_shared<Gen<IFDSProtoAnalysis::d_t>>(Store->getPointerOperand(),
                                                     getZeroValue());
@@ -48,39 +48,42 @@ IFDSProtoAnalysis::getNormalFlowFunction(IFDSProtoAnalysis::n_t Curr,
 }
 
 IFDSProtoAnalysis::FlowFunctionPtrType
-IFDSProtoAnalysis::getCallFlowFunction(IFDSProtoAnalysis::n_t CallSite,
-                                       IFDSProtoAnalysis::f_t DestFun) {
+IFDSProtoAnalysis::getCallFlowFunction(IFDSProtoAnalysis::n_t /*CallSite*/,
+                                       IFDSProtoAnalysis::f_t /*DestFun*/) {
   return Identity<IFDSProtoAnalysis::d_t>::getInstance();
 }
 
 IFDSProtoAnalysis::FlowFunctionPtrType IFDSProtoAnalysis::getRetFlowFunction(
-    IFDSProtoAnalysis::n_t CallSite, IFDSProtoAnalysis::f_t CalleeFun,
-    IFDSProtoAnalysis::n_t ExitSite, IFDSProtoAnalysis::n_t RetSite) {
+    IFDSProtoAnalysis::n_t /*CallSite*/, IFDSProtoAnalysis::f_t /*CalleeFun*/,
+    IFDSProtoAnalysis::n_t /*ExitInst*/, IFDSProtoAnalysis::n_t /*RetSite*/) {
   return Identity<IFDSProtoAnalysis::d_t>::getInstance();
 }
 
 IFDSProtoAnalysis::FlowFunctionPtrType
 IFDSProtoAnalysis::getCallToRetFlowFunction(
-    IFDSProtoAnalysis::n_t CallSite, IFDSProtoAnalysis::n_t RetSite,
-    set<IFDSProtoAnalysis::f_t> Callees) {
+    IFDSProtoAnalysis::n_t /*CallSite*/, IFDSProtoAnalysis::n_t /*RetSite*/,
+    set<IFDSProtoAnalysis::f_t> /*Callees*/) {
   return Identity<IFDSProtoAnalysis::d_t>::getInstance();
 }
 
 IFDSProtoAnalysis::FlowFunctionPtrType
-IFDSProtoAnalysis::getSummaryFlowFunction(IFDSProtoAnalysis::n_t CallSite,
-                                          IFDSProtoAnalysis::f_t DestFun) {
+IFDSProtoAnalysis::getSummaryFlowFunction(IFDSProtoAnalysis::n_t /*CallSite*/,
+                                          IFDSProtoAnalysis::f_t /*DestFun*/) {
   return Identity<IFDSProtoAnalysis::d_t>::getInstance();
 }
 
-map<IFDSProtoAnalysis::n_t, set<IFDSProtoAnalysis::d_t>>
+InitialSeeds<IFDSProtoAnalysis::n_t, IFDSProtoAnalysis::d_t,
+             IFDSProtoAnalysis::l_t>
 IFDSProtoAnalysis::initialSeeds() {
   cout << "IFDSProtoAnalysis::initialSeeds()\n";
-  map<IFDSProtoAnalysis::n_t, set<IFDSProtoAnalysis::d_t>> SeedMap;
+  InitialSeeds<IFDSProtoAnalysis::n_t, IFDSProtoAnalysis::d_t,
+               IFDSProtoAnalysis::l_t>
+      Seeds;
   for (const auto &EntryPoint : EntryPoints) {
-    SeedMap.insert(make_pair(&ICF->getFunction(EntryPoint)->front().front(),
-                             set<IFDSProtoAnalysis::d_t>({getZeroValue()})));
+    Seeds.addSeed(&ICF->getFunction(EntryPoint)->front().front(),
+                  getZeroValue());
   }
-  return SeedMap;
+  return Seeds;
 }
 
 IFDSProtoAnalysis::d_t IFDSProtoAnalysis::createZeroValue() const {
@@ -88,22 +91,23 @@ IFDSProtoAnalysis::d_t IFDSProtoAnalysis::createZeroValue() const {
   return LLVMZeroValue::getInstance();
 }
 
-bool IFDSProtoAnalysis::isZeroValue(IFDSProtoAnalysis::d_t D) const {
-  return LLVMZeroValue::getInstance()->isLLVMZeroValue(D);
+bool IFDSProtoAnalysis::isZeroValue(IFDSProtoAnalysis::d_t Fact) const {
+  return LLVMZeroValue::getInstance()->isLLVMZeroValue(Fact);
 }
 
-void IFDSProtoAnalysis::printNode(ostream &OS, IFDSProtoAnalysis::n_t N) const {
-  OS << llvmIRToString(N);
+void IFDSProtoAnalysis::printNode(ostream &OS,
+                                  IFDSProtoAnalysis::n_t Stmt) const {
+  OS << llvmIRToString(Stmt);
 }
 
 void IFDSProtoAnalysis::printDataFlowFact(ostream &OS,
-                                          IFDSProtoAnalysis::d_t D) const {
-  OS << llvmIRToString(D);
+                                          IFDSProtoAnalysis::d_t Fact) const {
+  OS << llvmIRToString(Fact);
 }
 
 void IFDSProtoAnalysis::printFunction(ostream &OS,
-                                      IFDSProtoAnalysis::f_t M) const {
-  OS << M->getName().str();
+                                      IFDSProtoAnalysis::f_t Func) const {
+  OS << Func->getName().str();
 }
 
 } // namespace psr

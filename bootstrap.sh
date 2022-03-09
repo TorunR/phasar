@@ -5,11 +5,11 @@ source ./utils/safeCommandsSet.sh
 
 readonly PHASAR_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 readonly PHASAR_INSTALL_DIR="/usr/local/phasar"
-readonly LLVM_INSTALL_DIR="/usr/local/llvm-12"
+readonly LLVM_INSTALL_DIR="/usr/local/llvm-13"
 
 NUM_THREADS=$(nproc)
-LLVM_RELEASE=llvmorg-12.0.0
-DO_UNIT_TEST=false
+LLVM_RELEASE=llvmorg-13.0.0
+DO_UNIT_TEST=true
 
 
 # Parsing command-line-parameters

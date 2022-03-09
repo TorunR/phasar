@@ -14,8 +14,8 @@
  *      Author: pdschbrt
  */
 
-#ifndef PHASAR_PHASARLLVM_IFDSIDE_IFDSTABULATIONPROBLEM_H_
-#define PHASAR_PHASARLLVM_IFDSIDE_IFDSTABULATIONPROBLEM_H_
+#ifndef PHASAR_PHASARLLVM_DATAFLOWSOLVER_IFDSIDE_IFDSTABULATIONPROBLEM_H
+#define PHASAR_PHASARLLVM_DATAFLOWSOLVER_IFDSIDE_IFDSTABULATIONPROBLEM_H
 
 #include <iostream>
 #include <map>
@@ -26,6 +26,7 @@
 #include "phasar/PhasarLLVM/ControlFlow/LLVMBasedICFG.h"
 #include "phasar/PhasarLLVM/DataFlowSolver/IfdsIde/FlowFunctions.h"
 #include "phasar/PhasarLLVM/DataFlowSolver/IfdsIde/IFDSIDESolverConfig.h"
+#include "phasar/PhasarLLVM/DataFlowSolver/IfdsIde/InitialSeeds.h"
 #include "phasar/PhasarLLVM/DataFlowSolver/IfdsIde/Solver/SolverResults.h"
 #include "phasar/PhasarLLVM/Utils/Printer.h"
 #include "phasar/Utils/Soundness.h"
@@ -53,6 +54,7 @@ public:
   using f_t = typename AnalysisDomainTy::f_t;
   using t_t = typename AnalysisDomainTy::t_t;
   using v_t = typename AnalysisDomainTy::v_t;
+  using l_t = typename AnalysisDomainTy::l_t;
   using i_t = typename AnalysisDomainTy::i_t;
 
   static_assert(std::is_base_of_v<ICFG<n_t, f_t>, i_t>,
@@ -66,7 +68,7 @@ protected:
   PointsToInfo<v_t, n_t> *PT;
   d_t ZeroValue;
   std::set<std::string> EntryPoints;
-  [[maybe_unused]] Soundness SF = Soundness::UNUSED;
+  [[maybe_unused]] Soundness SF = Soundness::Unused;
 
 public:
   using ConfigurationTy = HasNoConfigurationType;
@@ -81,18 +83,18 @@ public:
   ~IFDSTabulationProblem() override = default;
 
   /// Returns the tautological lambda (or zero) data-flow fact.
-  virtual d_t createZeroValue() const = 0;
+  [[nodiscard]] virtual d_t createZeroValue() const = 0;
 
   /// Checks if the given data-flow fact is the special tautological lambda (or
   /// zero) fact.
-  virtual bool isZeroValue(d_t d) const = 0;
+  [[nodiscard]] virtual bool isZeroValue(d_t FlowFact) const = 0;
 
   /// Returns initial seeds to be used for the analysis. This is a mapping of
   /// statements to initial analysis facts.
-  virtual std::map<n_t, std::set<d_t>> initialSeeds() = 0;
+  [[nodiscard]] virtual InitialSeeds<n_t, d_t, l_t> initialSeeds() = 0;
 
   /// Returns the special tautological lambda (or zero) fact.
-  d_t getZeroValue() const { return ZeroValue; }
+  [[nodiscard]] d_t getZeroValue() const { return ZeroValue; }
 
   /// Returns the analysis' entry points.
   [[nodiscard]] std::set<std::string> getEntryPoints() const {
@@ -100,16 +102,18 @@ public:
   }
 
   /// Returns the underlying IR.
-  const ProjectIRDB *getProjectIRDB() const { return IRDB; }
+  [[nodiscard]] const ProjectIRDB *getProjectIRDB() const { return IRDB; }
 
   /// Returns the underlying type hierarchy.
-  const TypeHierarchy<t_t, f_t> *getTypeHierarchy() const { return TH; }
+  [[nodiscard]] const TypeHierarchy<t_t, f_t> *getTypeHierarchy() const {
+    return TH;
+  }
 
   /// Returns the underlying inter-procedural control-flow graph.
-  const i_t *getICFG() const { return ICF; }
+  [[nodiscard]] const i_t *getICFG() const { return ICF; }
 
   /// Returns the underlying points-to information.
-  PointsToInfo<v_t, n_t> *getPointstoInfo() const { return PT; }
+  [[nodiscard]] PointsToInfo<v_t, n_t> *getPointstoInfo() const { return PT; }
 
   /// Sets the configuration to be used by the IFDS/IDE solver.
   void setIFDSIDESolverConfig(IFDSIDESolverConfig Config) {
@@ -123,22 +127,23 @@ public:
 
   /// Generates a text report of the results that is written to the specified
   /// output stream.
-  virtual void emitTextReport(const SolverResults<n_t, d_t, BinaryDomain> &SR,
-                              std::ostream &OS = std::cout) {
+  virtual void
+  emitTextReport([[maybe_unused]] const SolverResults<n_t, d_t, l_t> &Results,
+                 std::ostream &OS = std::cout) {
     OS << "No text report available!\n";
   }
 
   /// Generates a graphical report, e.g. in html or other markup languages, of
   /// the results that is written to the specified output stream.
-  virtual void
-  emitGraphicalReport(const SolverResults<n_t, d_t, BinaryDomain> &SR,
-                      std::ostream &OS = std::cout) {
+  virtual void emitGraphicalReport(
+      [[maybe_unused]] const SolverResults<n_t, d_t, l_t> &Results,
+      std::ostream &OS = std::cout) {
     OS << "No graphical report available!\n";
   }
 
   /// Sets the level of soundness to be used by the analysis. Returns false if
   /// the level of soundness is ignored. Otherwise, true.
-  virtual bool setSoundness(Soundness S) { return false; }
+  virtual bool setSoundness(Soundness /*S*/) { return false; }
 };
 } // namespace psr
 

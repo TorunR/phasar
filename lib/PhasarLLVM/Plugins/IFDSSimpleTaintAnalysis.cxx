@@ -25,6 +25,7 @@
 #include "phasar/PhasarLLVM/DataFlowSolver/IfdsIde/FlowFunctions.h"
 
 #include "IFDSSimpleTaintAnalysis.h"
+#include "phasar/PhasarLLVM/Utils/BinaryDomain.h"
 
 using namespace std;
 using namespace psr;
@@ -55,7 +56,7 @@ IFDSSimpleTaintAnalysis::IFDSSimpleTaintAnalysis(
     const LLVMBasedICFG *ICF, LLVMPointsToInfo *PT,
     std::set<std::string> EntryPoints)
     : IFDSTabulationProblemPlugin(IRDB, TH, ICF, PT, std::move(EntryPoints)) {
-  ZeroValue = ffManager.getOrCreateZero();
+  ZeroValue = FFManager.getOrCreateZero();
 }
 
 const FlowFact *IFDSSimpleTaintAnalysis::createZeroValue() const {
@@ -66,19 +67,18 @@ const FlowFact *IFDSSimpleTaintAnalysis::createZeroValue() const {
 }
 
 IFDSSimpleTaintAnalysis::FlowFunctionPtrType
-IFDSSimpleTaintAnalysis::getNormalFlowFunction(const llvm::Instruction *Curr,
-                                               const llvm::Instruction *Succ) {
+IFDSSimpleTaintAnalysis::getNormalFlowFunction(
+    const llvm::Instruction *Curr, const llvm::Instruction * /*Succ*/) {
   if (const auto *Store = llvm::dyn_cast<llvm::StoreInst>(Curr)) {
-    return make_shared<LambdaFlow<const FlowFact *>>(
-        [this, Store](const FlowFact *source) -> set<const FlowFact *> {
+    return makeLambdaFlow<const FlowFact *>(
+        [this, Store](const FlowFact *Source) -> set<const FlowFact *> {
           // auto VFW = static_cast<const ValueFlowFactWrapper *>(source);
           if (Store->getValueOperand() ==
-              source->as<ValueFlowFactWrapper>()->get()) {
-            return ffManager.getOrCreateFlowFacts(Store->getValueOperand(),
+              Source->as<ValueFlowFactWrapper>()->get()) {
+            return FFManager.getOrCreateFlowFacts(Store->getValueOperand(),
                                                   Store->getPointerOperand());
-          } else {
-            return ffManager.getOrCreateFlowFacts(Store->getValueOperand());
           }
+          return FFManager.getOrCreateFlowFacts(Store->getValueOperand());
         });
   }
   return Identity<const FlowFact *>::getInstance();
@@ -90,8 +90,9 @@ IFDSSimpleTaintAnalysis::getCallFlowFunction(const llvm::Instruction *CallSite,
   if (const auto *Call = llvm::dyn_cast<llvm::CallInst>(CallSite)) {
     if (DestFun->getName().str() == "taint") {
       return make_shared<Gen<const FlowFact *>>(
-          ffManager.getOrCreateFlowFact(Call), getZeroValue());
-    } else if (DestFun->getName().str() == "leak") {
+          FFManager.getOrCreateFlowFact(Call), getZeroValue());
+    }
+    if (DestFun->getName().str() == "leak") {
     } else {
     }
   }
@@ -99,36 +100,38 @@ IFDSSimpleTaintAnalysis::getCallFlowFunction(const llvm::Instruction *CallSite,
 }
 
 IFDSSimpleTaintAnalysis::FlowFunctionPtrType
-IFDSSimpleTaintAnalysis::getRetFlowFunction(const llvm::Instruction *CallSite,
-                                            const llvm::Function *CalleeFun,
-                                            const llvm::Instruction *ExitSite,
-                                            const llvm::Instruction *RetSite) {
+IFDSSimpleTaintAnalysis::getRetFlowFunction(
+    const llvm::Instruction * /*CallSite*/,
+    const llvm::Function * /*CalleeFun*/,
+    const llvm::Instruction * /*ExitSite*/,
+    const llvm::Instruction * /*RetSite*/) {
   return Identity<const FlowFact *>::getInstance();
 }
 
 IFDSSimpleTaintAnalysis::FlowFunctionPtrType
 IFDSSimpleTaintAnalysis::getCallToRetFlowFunction(
-    const llvm::Instruction *CallSite, const llvm::Instruction *RetSite,
-    set<const llvm::Function *> Callees) {
+    const llvm::Instruction * /*CallSite*/,
+    const llvm::Instruction * /*RetSite*/,
+    set<const llvm::Function *> /*Callees*/) {
   return Identity<const FlowFact *>::getInstance();
 }
 
 IFDSSimpleTaintAnalysis::FlowFunctionPtrType
 IFDSSimpleTaintAnalysis::getSummaryFlowFunction(
-    const llvm::Instruction *CallSite, const llvm::Function *DestFun) {
+    const llvm::Instruction * /*CallSite*/,
+    const llvm::Function * /*DestFun*/) {
   return nullptr;
 }
 
-map<const llvm::Instruction *, set<const FlowFact *>>
+InitialSeeds<const llvm::Instruction *, const FlowFact *, BinaryDomain>
 IFDSSimpleTaintAnalysis::initialSeeds() {
   cout << "IFDSSimpleTaintAnalysis::initialSeeds()\n";
-  map<const llvm::Instruction *, set<const FlowFact *>> SeedMap;
-  for (auto &EntryPoint : EntryPoints) {
-    SeedMap.insert(
-        std::make_pair(&ICF->getFunction(EntryPoint)->front().front(),
-                       set<const FlowFact *>({getZeroValue()})));
+  InitialSeeds<const llvm::Instruction *, const FlowFact *, BinaryDomain> Seeds;
+  for (const auto &EntryPoint : EntryPoints) {
+    Seeds.addSeed(&ICF->getFunction(EntryPoint)->front().front(),
+                  getZeroValue());
   }
-  return SeedMap;
+  return Seeds;
 }
 
 } // namespace psr

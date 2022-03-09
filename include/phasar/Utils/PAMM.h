@@ -32,9 +32,9 @@ namespace psr {
 /// completely when no performance evaluation is needed. Macros are defined
 /// in @see PAMMMacros.h
 ///
-/// Currently, PAMM can be run with all metrics (severity level 2 = Full) or only
-/// core metrics (severity level 1 = Core) enabled. The severity level can be
-/// changed when building PhASAR. The CMake option is
+/// Currently, PAMM can be run with all metrics (severity level 2 = Full) or
+/// only core metrics (severity level 1 = Core) enabled. The severity level can
+/// be changed when building PhASAR. The CMake option is
 /// -DPHASAR_ENABLE_PAMM=[Off/Core/Full]. Note that PAMM will be disabled
 /// (severity level 0 = Off) when building and running unittests.
 ///
@@ -43,9 +43,9 @@ namespace psr {
 ///
 /// @brief This class offers functionality to assist a performance analysis of
 /// the PhASAR framework.
-/// @note This class implements the Singleton Pattern - use the PAMM_GET_INSTANCE
-/// macro to retrieve an instance of PAMM before you use any other macro from
-/// this class.
+/// @note This class implements the Singleton Pattern - use the
+/// PAMM_GET_INSTANCE macro to retrieve an instance of PAMM before you use any
+/// other macro from this class.
 class PAMM {
 private:
   PAMM() = default;
@@ -65,10 +65,10 @@ private:
 
 public:
   // PAMM is used as singleton.
-  PAMM(const PAMM &pm) = delete;
-  PAMM(PAMM &&pm) = delete;
-  PAMM &operator=(const PAMM &pm) = delete;
-  PAMM &operator=(PAMM &&pm) = delete;
+  PAMM(const PAMM &PM) = delete;
+  PAMM(PAMM &&PM) = delete;
+  PAMM &operator=(const PAMM &PM) = delete;
+  PAMM &operator=(PAMM &&PM) = delete;
 
   /// \brief Returns a reference to the PAMM object (singleton) - associated
   /// macro: PAMM_GET_INSTANCE.
@@ -172,15 +172,15 @@ public:
                       const std::string &DataPointId,
                       unsigned long DataPointValue = 1);
 
-  void printTimers(std::ostream &os);
+  void printTimers(std::ostream &OS);
 
-  void printCounters(std::ostream &os);
+  void printCounters(std::ostream &OS);
 
-  void printHistograms(std::ostream &os);
+  void printHistograms(std::ostream &OS);
 
   /// \brief Prints the measured data to the commandline - associated macro:
   /// PRINT_MEASURED_DATA
-  void printMeasuredData(std::ostream &os);
+  void printMeasuredData(std::ostream &OS);
 
   /// \brief Exports the measured data to JSON - associated macro:
   /// EXPORT_MEASURED_DATA(PATH).

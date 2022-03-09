@@ -24,17 +24,17 @@ protected:
   const std::set<std::string> EntryPoints = {"main"};
 
   // Function - Line Nr - Variable - Value
-  using LCACompactResult_t =
-      std::tuple<std::string, std::size_t, std::string, int64_t>;
+  using LCACompactResult_t = std::tuple<std::string, std::size_t, std::string,
+                                        IDELinearConstantAnalysisDomain::l_t>;
   std::unique_ptr<ProjectIRDB> IRDB;
 
   void SetUp() override { boost::log::core::get()->set_logging_enabled(false); }
 
   IDELinearConstantAnalysis::lca_results_t
   doAnalysis(const std::string &LlvmFilePath, bool PrintDump = false,
-             bool emitESG = false) {
-    auto IR_Files = {PathToLlFiles + LlvmFilePath};
-    IRDB = std::make_unique<ProjectIRDB>(IR_Files, IRDBOptions::WPA);
+             bool EmitESG = false) {
+    auto IRFiles = {PathToLlFiles + LlvmFilePath};
+    IRDB = std::make_unique<ProjectIRDB>(IRFiles, IRDBOptions::WPA);
     ValueAnnotationPass::resetValueID();
     LLVMTypeHierarchy TH(*IRDB);
     LLVMPointsToSet PT(*IRDB);
@@ -44,9 +44,10 @@ protected:
                                          EntryPoints);
     IDESolver_P<IDELinearConstantAnalysis> LCASolver(LCAProblem);
     LCASolver.solve();
-    if (emitESG) {
+    if (EmitESG) {
       boost::log::core::get()->set_logging_enabled(true);
-      LCASolver.emitESGAsDot(std::cout, "");
+      const std::string PhasarRootPath = "./";
+      LCASolver.emitESGAsDot(std::cout, PhasarRootPath);
       boost::log::core::get()->set_logging_enabled(false);
     }
     if (PrintDump) {
@@ -71,7 +72,7 @@ protected:
       unsigned Line = std::get<1>(G);
       if (Results.find(FName) != Results.end()) {
         if (auto It = Results[FName].find(Line); It != Results[FName].end()) {
-          for (const auto &VarToVal : It->second.variableToValue) {
+          for (const auto &VarToVal : It->second.VariableToValue) {
             RelevantResults.emplace(FName, Line, VarToVal.first,
                                     VarToVal.second);
           }
@@ -84,7 +85,7 @@ protected:
 
 /* ============== BASIC TESTS ============== */
 TEST_F(IDELinearConstantAnalysisTest, HandleBasicTest_01) {
-  auto Results = doAnalysis("basic_01_cpp_dbg.ll", false, true);
+  auto Results = doAnalysis("basic_01_cpp_dbg.ll");
   std::set<LCACompactResult_t> GroundTruth;
   GroundTruth.emplace("main", 2, "i", 13);
   GroundTruth.emplace("main", 3, "i", 13);
@@ -250,6 +251,7 @@ TEST_F(IDELinearConstantAnalysisTest, HandleBranchTest_05) {
   GroundTruth.emplace("main", 6, "j", 10);
   GroundTruth.emplace("main", 6, "i", 42);
   GroundTruth.emplace("main", 8, "j", 10);
+  GroundTruth.emplace("main", 8, "i", 42);
   compareResults(Results, GroundTruth);
 }
 
@@ -271,6 +273,7 @@ TEST_F(IDELinearConstantAnalysisTest, HandleBranchTest_07) {
   GroundTruth.emplace("main", 6, "j", 10);
   GroundTruth.emplace("main", 6, "i", 30);
   GroundTruth.emplace("main", 8, "j", 10);
+  GroundTruth.emplace("main", 8, "i", 30);
   compareResults(Results, GroundTruth);
 }
 
@@ -335,7 +338,7 @@ TEST_F(IDELinearConstantAnalysisTest, HandleCallTest_01) {
   GroundTruth.emplace("main", 7, "i", 42);
   GroundTruth.emplace("main", 8, "i", 42);
   compareResults(Results, GroundTruth);
-  EXPECT_TRUE(Results["_Z3fooi"].find(3) == Results["_Z3fooi"].end());
+  EXPECT_TRUE(Results["_Z3fooi"].find(4) == Results["_Z3fooi"].end());
 }
 
 TEST_F(IDELinearConstantAnalysisTest, HandleCallTest_02) {
@@ -499,12 +502,15 @@ TEST_F(IDELinearConstantAnalysisTest, HandleRecursionTest_03) {
 TEST_F(IDELinearConstantAnalysisTest, HandleGlobalsTest_01) {
   auto Results = doAnalysis("global_01_cpp_dbg.ll");
   std::set<LCACompactResult_t> GroundTruth;
-  GroundTruth.emplace("main", 6, "g1", 42);
+  GroundTruth.emplace("main", 6, "g1", 10);
   GroundTruth.emplace("main", 6, "g2", 1);
+  GroundTruth.emplace("main", 6, "i", 666);
   GroundTruth.emplace("main", 7, "g1", 42);
-  GroundTruth.emplace("main", 7, "g2", 42);
+  GroundTruth.emplace("main", 7, "g2", 1);
+  GroundTruth.emplace("main", 7, "i", 666);
   GroundTruth.emplace("main", 8, "g1", 42);
   GroundTruth.emplace("main", 8, "g2", 42);
+  GroundTruth.emplace("main", 8, "i", 666);
   compareResults(Results, GroundTruth);
 }
 

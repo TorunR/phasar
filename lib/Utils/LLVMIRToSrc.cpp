@@ -10,11 +10,17 @@
 #include <fstream>
 #include <iostream>
 #include <limits>
-#include <llvm/Support/Debug.h>
+#include <string>
+
+
 
 #include "boost/algorithm/string/trim.hpp"
 #include "boost/filesystem.hpp"
+#include "boost/filesystem/path.hpp"
 
+#include "llvm/ADT/StringExtras.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/Demangle/Demangle.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/Instruction.h"
@@ -24,6 +30,8 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Value.h"
 
+#include <llvm/Support/Debug.h>
+
 #include "phasar/Utils/LLVMIRToSrc.h"
 
 using namespace psr;
@@ -31,8 +39,8 @@ using namespace psr;
 namespace psr {
 
 llvm::DbgVariableIntrinsic *getDbgVarIntrinsic(const llvm::Value *V) {
-  if (auto *VAM =
-          llvm::ValueAsMetadata::getIfExists(const_cast<llvm::Value *>(V))) {
+  if (auto *VAM = llvm::ValueAsMetadata::getIfExists(
+          const_cast<llvm::Value *>(V))) { // NOLINT FIXME when LLVM supports it
     if (auto *MDV = llvm::MetadataAsValue::getIfExists(V->getContext(), VAM)) {
       for (auto *U : MDV->users()) {
         if (auto *DBGIntr = llvm::dyn_cast<llvm::DbgVariableIntrinsic>(U)) {
@@ -130,7 +138,8 @@ llvm::DIFile *getDIFile(const llvm::Value *V) {
 std::string getVarNameFromIR(const llvm::Value *V) {
   if (auto *LocVar = getDILocalVariable(V)) {
     return LocVar->getName().str();
-  } else if (auto *GlobVar = getDIGlobalVariable(V)) {
+  }
+  if (auto *GlobVar = getDIGlobalVariable(V)) {
     return GlobVar->getName().str();
   }
   return "";
@@ -140,9 +149,11 @@ std::string getFunctionNameFromIR(const llvm::Value *V) {
   // We can return unmangled function names w/o checking debug info
   if (const auto *F = llvm::dyn_cast<llvm::Function>(V)) {
     return F->getName().str();
-  } else if (const auto *Arg = llvm::dyn_cast<llvm::Argument>(V)) {
+  }
+  if (const auto *Arg = llvm::dyn_cast<llvm::Argument>(V)) {
     return Arg->getParent()->getName().str();
-  } else if (const auto *I = llvm::dyn_cast<llvm::Instruction>(V)) {
+  }
+  if (const auto *I = llvm::dyn_cast<llvm::Instruction>(V)) {
     return I->getFunction()->getName().str();
   }
   return "";
@@ -165,9 +176,11 @@ std::string getFilePathFromIR(const llvm::Value *V) {
      * will return 'llvm-link' for linked modules. */
     if (const auto *F = llvm::dyn_cast<llvm::Function>(V)) {
       return F->getParent()->getSourceFileName();
-    } else if (const auto *Arg = llvm::dyn_cast<llvm::Argument>(V)) {
+    }
+    if (const auto *Arg = llvm::dyn_cast<llvm::Argument>(V)) {
       return Arg->getParent()->getParent()->getSourceFileName();
-    } else if (const auto *I = llvm::dyn_cast<llvm::Instruction>(V)) {
+    }
+    if (const auto *I = llvm::dyn_cast<llvm::Instruction>(V)) {
       return I->getFunction()->getParent()->getSourceFileName();
     }
   }
@@ -178,9 +191,11 @@ unsigned int getLineFromIR(const llvm::Value *V) {
   // Argument and Instruction
   if (auto *DILoc = getDILocation(V)) {
     return DILoc->getLine();
-  } else if (auto *DISubpr = getDISubprogram(V)) { // Function
+  }
+  if (auto *DISubpr = getDISubprogram(V)) { // Function
     return DISubpr->getLine();
-  } else if (auto *DIGV = getDIGlobalVariable(V)) { // Globals
+  }
+  if (auto *DIGV = getDIGlobalVariable(V)) { // Globals
     return DIGV->getLine();
   }
   return 0;
@@ -190,12 +205,14 @@ std::string getDirectoryFromIR(const llvm::Value *V) {
   // Argument and Instruction
   if (auto *DILoc = getDILocation(V)) {
     return DILoc->getDirectory().str();
-  } else if (auto *DISubpr = getDISubprogram(V)) { // Function
+  }
+  if (auto *DISubpr = getDISubprogram(V)) { // Function
     return DISubpr->getDirectory().str();
-  } else if (auto *DIGV = getDIGlobalVariable(V)) { // Globals
+  }
+  if (auto *DIGV = getDIGlobalVariable(V)) { // Globals
     return DIGV->getDirectory().str();
   }
-  return nullptr;
+  return "";
 }
 
 unsigned int getColumnFromIR(const llvm::Value *V) {
@@ -282,12 +299,73 @@ std::string getSrcCodeFromIR(const llvm::Value *V) {
 std::string getModuleIDFromIR(const llvm::Value *V) {
   if (const auto *GO = llvm::dyn_cast<llvm::GlobalObject>(V)) {
     return GO->getParent()->getModuleIdentifier();
-  } else if (const auto *Arg = llvm::dyn_cast<llvm::Argument>(V)) {
+  }
+  if (const auto *Arg = llvm::dyn_cast<llvm::Argument>(V)) {
     return Arg->getParent()->getParent()->getModuleIdentifier();
-  } else if (const auto *I = llvm::dyn_cast<llvm::Instruction>(V)) {
+  }
+  if (const auto *I = llvm::dyn_cast<llvm::Instruction>(V)) {
     return I->getFunction()->getParent()->getModuleIdentifier();
   }
   return "";
+}
+
+bool SourceCodeInfo::empty() const noexcept { return SourceCodeLine.empty(); }
+
+bool SourceCodeInfo::operator==(const SourceCodeInfo &Other) const noexcept {
+  // don't compare the SourceCodeFunctionName. It is directly derivable from
+  // line, column and filename
+  return Line == Other.Line && Column == Other.Column &&
+         SourceCodeLine == Other.SourceCodeLine &&
+         SourceCodeFilename == Other.SourceCodeFilename;
+}
+
+bool SourceCodeInfo::equivalentWith(const SourceCodeInfo &Other) const {
+  // Here, we need to compare the SourceCodeFunctionName, because we don't
+  // compare the complete SourceCodeFilename
+  if (Line != Other.Line || Column != Other.Column ||
+      SourceCodeLine != Other.SourceCodeLine ||
+      SourceCodeFunctionName != Other.SourceCodeFunctionName) {
+    return false;
+  }
+
+  auto Pos =
+      SourceCodeFilename.find_last_of(boost::filesystem::path::separator);
+  if (Pos == std::string::npos) {
+    Pos = 0;
+  }
+
+  return llvm::StringRef(Other.SourceCodeFilename)
+      .endswith(llvm::StringRef(SourceCodeFilename)
+                    .slice(Pos + 1, llvm::StringRef::npos));
+}
+
+void from_json(const nlohmann::json &J, SourceCodeInfo &Info) {
+  J.at("sourceCodeLine").get_to(Info.SourceCodeLine);
+  J.at("sourceCodeFileName").get_to(Info.SourceCodeFilename);
+  if (auto Fn = J.find("sourceCode"); Fn != J.end()) {
+    Fn->get_to(Info.SourceCodeFunctionName);
+  }
+  J.at("line").get_to(Info.Line);
+  J.at("column").get_to(Info.Column);
+}
+void to_json(nlohmann::json &J, const SourceCodeInfo &Info) {
+  J = nlohmann::json{
+      {"sourceCodeLine", Info.SourceCodeLine},
+      {"sourceCodeFileName", Info.SourceCodeFilename},
+      {"sourceCodeFunctionName", Info.SourceCodeFunctionName},
+      {"line", Info.Line},
+      {"column", Info.Column},
+  };
+}
+
+SourceCodeInfo getSrcCodeInfoFromIR(const llvm::Value *V) {
+  return SourceCodeInfo{
+      getSrcCodeFromIR(V),
+      getFilePathFromIR(V),
+      llvm::demangle(getFunctionNameFromIR(V)),
+      getLineFromIR(V),
+      getColumnFromIR(V),
+  };
 }
 
 } // namespace psr

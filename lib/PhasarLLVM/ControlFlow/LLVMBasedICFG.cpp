@@ -15,14 +15,23 @@
  */
 
 #include <cassert>
+#include <chrono>
+#include <initializer_list>
 #include <memory>
+#include <ostream>
 
+#include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/AbstractCallSite.h"
+#include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instruction.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
 
 #include "boost/graph/copy.hpp"
@@ -30,6 +39,7 @@
 #include "boost/graph/graph_utility.hpp"
 #include "boost/graph/graphviz.hpp"
 
+#include "phasar/DB/ProjectIRDB.h"
 #include "phasar/PhasarLLVM/ControlFlow/LLVMBasedICFG.h"
 #include "phasar/PhasarLLVM/ControlFlow/Resolver/CHAResolver.h"
 #include "phasar/PhasarLLVM/ControlFlow/Resolver/DTAResolver.h"
@@ -37,20 +47,19 @@
 #include "phasar/PhasarLLVM/ControlFlow/Resolver/OTFResolver.h"
 #include "phasar/PhasarLLVM/ControlFlow/Resolver/RTAResolver.h"
 #include "phasar/PhasarLLVM/ControlFlow/Resolver/Resolver.h"
-
+#include "phasar/PhasarLLVM/Pointer/LLVMPointsToGraph.h"
+#include "phasar/PhasarLLVM/Pointer/LLVMPointsToInfo.h"
+#include "phasar/PhasarLLVM/Pointer/LLVMPointsToSet.h"
+#include "phasar/PhasarLLVM/TypeHierarchy/LLVMTypeHierarchy.h"
+#include "phasar/PhasarLLVM/TypeHierarchy/LLVMVFTable.h"
+#include "phasar/PhasarPass/Options.h"
+#include "phasar/Utils/LLVMIRToSrc.h"
 #include "phasar/Utils/LLVMShorthands.h"
 #include "phasar/Utils/Logger.h"
 #include "phasar/Utils/PAMMMacros.h"
 #include "phasar/Utils/Utilities.h"
 
-#include "phasar/DB/ProjectIRDB.h"
-
-#include "phasar/PhasarLLVM/Pointer/LLVMPointsToGraph.h"
-#include "phasar/PhasarLLVM/Pointer/LLVMPointsToInfo.h"
-#include "phasar/PhasarLLVM/Pointer/LLVMPointsToSet.h"
-
-#include "phasar/PhasarLLVM/TypeHierarchy/LLVMTypeHierarchy.h"
-#include "phasar/PhasarLLVM/TypeHierarchy/LLVMVFTable.h"
+#include "nlohmann/json.hpp"
 
 using namespace psr;
 using namespace std;
@@ -62,7 +71,8 @@ public:
   VertexWriter(const graphType &CGraph) : CGraph(CGraph) {}
   template <class VertexOrEdge>
   void operator()(std::ostream &Out, const VertexOrEdge &V) const {
-    Out << "[label=\"" << CGraph[V].getFunctionName() << "\"]";
+    const auto &Label = CGraph[V].getFunctionName();
+    Out << "[label=" << boost::escape_dot_string(Label) << "]";
   }
 
 private:
@@ -74,33 +84,13 @@ public:
   EdgeLabelWriter(const graphType &CGraph) : CGraph(CGraph) {}
   template <class VertexOrEdge>
   void operator()(std::ostream &Out, const VertexOrEdge &V) const {
-    Out << "[label=\"" << CGraph[V].getCallSiteAsString() << "\"]";
+    const auto &Label = CGraph[V].getCallSiteAsString();
+    Out << "[label=" << boost::escape_dot_string(Label) << "]";
   }
 
 private:
   const graphType &CGraph;
 };
-
-std::vector<const llvm::Function *>
-getGlobalCtorsDtorsImpl(const llvm::Module *M, llvm::StringRef Fun) {
-  std::vector<const llvm::Function *> Result;
-  const auto *Gtors = M->getGlobalVariable(Fun);
-  if (const auto *FunArray = llvm::dyn_cast<llvm::ArrayType>(
-          Gtors->getType()->getPointerElementType())) {
-    if (const auto *ConstFunArray =
-            llvm::dyn_cast<llvm::ConstantArray>(Gtors->getInitializer())) {
-      for (const auto &Op : ConstFunArray->operands()) {
-        if (const auto *FunDesc = llvm::dyn_cast<llvm::ConstantStruct>(Op)) {
-          if (const auto *Fun =
-                  llvm::dyn_cast<llvm::Function>(FunDesc->getOperand(1))) {
-            Result.push_back(Fun);
-          }
-        }
-      }
-    }
-  }
-  return Result;
-}
 
 } // anonymous namespace
 
@@ -110,7 +100,7 @@ struct LLVMBasedICFG::dependency_visitor : boost::default_dfs_visitor {
   std::vector<vertex_t> &Vertices;
   dependency_visitor(std::vector<vertex_t> &V) : Vertices(V) {}
   template <typename Vertex, typename Graph>
-  void finish_vertex(Vertex U, const Graph &G) {
+  void finish_vertex(Vertex U, const Graph & /*G*/) {
     Vertices.push_back(U);
   }
 };
@@ -141,7 +131,7 @@ LLVMBasedICFG::LLVMBasedICFG(const LLVMBasedICFG &ICF)
 LLVMBasedICFG::LLVMBasedICFG(ProjectIRDB &IRDB, CallGraphAnalysisType CGType,
                              const std::set<std::string> &EntryPoints,
                              LLVMTypeHierarchy *TH, LLVMPointsToInfo *PT,
-                             Soundness S)
+                             Soundness S, bool IncludeGlobals)
     : IRDB(IRDB), CGType(CGType), S(S), TH(TH), PT(PT) {
   PAMM_GET_INSTANCE;
   // check for faults in the logic
@@ -157,29 +147,56 @@ LLVMBasedICFG::LLVMBasedICFG(ProjectIRDB &IRDB, CallGraphAnalysisType CGType,
     this->PT = new LLVMPointsToSet(IRDB);
     UserPTInfos = false;
   }
+  if (this->PT == nullptr) {
+    llvm::report_fatal_error("LLVMPointsToInfo not passed and "
+                             "CallGraphAnalysisType::OTF was not specified.");
+  }
+  if (EntryPoints.count("__ALL__")) {
+    // Handle the special case in which a user wishes to treat all functions as
+    // entry points.
+    auto Funs = IRDB.getAllFunctions();
+    for (const auto *Fun : Funs) {
+      if (!Fun->isDeclaration() && Fun->hasName()) {
+        UserEntryPoints.insert(IRDB.getFunctionDefinition(Fun->getName()));
+      }
+    }
+  } else {
+    for (const auto &EntryPoint : EntryPoints) {
+      auto *F = IRDB.getFunctionDefinition(EntryPoint);
+      if (F == nullptr) {
+        llvm::report_fatal_error("Could not retrieve function for entry point");
+      }
+      UserEntryPoints.insert(F);
+    }
+  }
+  if (IncludeGlobals) {
+    assert(IRDB.getNumberOfModules() == 1 &&
+           "IncludeGlobals is currently only supported for WPA");
+    const auto *GlobCtor =
+        buildCRuntimeGlobalCtorsDtorsModel(*IRDB.getWPAModule());
+    FunctionWL.push_back(GlobCtor);
+  } else {
+    FunctionWL.insert(FunctionWL.end(), UserEntryPoints.begin(),
+                      UserEntryPoints.end());
+  }
   // instantiate the respective resolver type
-  Res = makeResolver(IRDB, CGType, *this->TH, *this->PT);
+  Res = makeResolver(IRDB, *this->TH, *this->PT);
   LOG_IF_ENABLE(BOOST_LOG_SEV(lg::get(), INFO)
                 << "Starting CallGraphAnalysisType: " << CGType);
   VisitedFunctions.reserve(IRDB.getAllFunctions().size());
-  for (const auto &EntryPoint : EntryPoints) {
-    const llvm::Function *F = IRDB.getFunctionDefinition(EntryPoint);
-    if (F == nullptr) {
-      llvm::report_fatal_error("Could not retrieve function for entry point");
-    }
-    FunctionWL.push(F);
-  }
   bool FixpointReached;
   do {
     FixpointReached = true;
     while (!FunctionWL.empty()) {
-      const llvm::Function *F = FunctionWL.top();
-      FunctionWL.pop();
+      const llvm::Function *F = FunctionWL.back();
+      FunctionWL.pop_back();
       processFunction(F, *Res, FixpointReached);
     }
-    for (const auto &[Callsite, _] : IndirectCalls) {
-      FixpointReached &= !constructDynamicCall(Callsite, *Res);
+
+    for (auto [CS, _] : IndirectCalls) {
+      FixpointReached &= !constructDynamicCall(CS, *Res);
     }
+
   } while (!FixpointReached);
   for (const auto &[IndirectCall, Targets] : IndirectCalls) {
     if (Targets == 0) {
@@ -228,80 +245,77 @@ void LLVMBasedICFG::processFunction(const llvm::Function *F, Resolver &Resolver,
   }
 
   // iterate all instructions of the current function
-  for (const auto &BB : *F) {
-    for (const auto &I : BB) {
-      if (llvm::isa<llvm::CallInst>(I) || llvm::isa<llvm::InvokeInst>(I)) {
-        Resolver.preCall(&I);
+  Resolver::FunctionSetTy PossibleTargets;
+  for (const auto &I : llvm::instructions(F)) {
+    if (const auto *CS = llvm::dyn_cast<llvm::CallBase>(&I)) {
+      Resolver.preCall(&I);
 
-        const llvm::CallBase *CS = llvm::cast<llvm::CallBase>(&I);
-        set<const llvm::Function *> PossibleTargets;
-        // check if function call can be resolved statically
-        if (CS->getCalledFunction() != nullptr) {
-          PossibleTargets.insert(CS->getCalledFunction());
+      // check if function call can be resolved statically
+      if (CS->getCalledFunction() != nullptr) {
+        PossibleTargets.insert(CS->getCalledFunction());
+        LOG_IF_ENABLE(BOOST_LOG_SEV(lg::get(), DEBUG)
+                      << "Found static call-site: "
+                      << "  " << llvmIRToString(CS));
+      } else {
+        // still try to resolve the called function statically
+        const llvm::Value *SV = CS->getCalledOperand()->stripPointerCasts();
+        const llvm::Function *ValueFunction =
+            !SV->hasName() ? nullptr : IRDB.getFunction(SV->getName());
+        if (ValueFunction) {
+          PossibleTargets.insert(ValueFunction);
           LOG_IF_ENABLE(BOOST_LOG_SEV(lg::get(), DEBUG)
-                        << "Found static call-site: ");
-          LOG_IF_ENABLE(BOOST_LOG_SEV(lg::get(), DEBUG)
-                        << "  " << llvmIRToString(CS));
+                        << "Found static call-site: " << llvmIRToString(CS));
         } else {
-          // still try to resolve the called function statically
-          const llvm::Value *SV = CS->getCalledOperand()->stripPointerCasts();
-          const llvm::Function *ValueFunction =
-              !SV->hasName() ? nullptr : IRDB.getFunction(SV->getName().str());
-          if (ValueFunction) {
-            PossibleTargets.insert(ValueFunction);
-            LOG_IF_ENABLE(BOOST_LOG_SEV(lg::get(), DEBUG)
-                          << "Found static call-site: " << llvmIRToString(CS));
-          } else {
-            if (llvm::isa<llvm::InlineAsm>(SV)) {
-              continue;
-            }
-            // the function call must be resolved dynamically
-            LOG_IF_ENABLE(BOOST_LOG_SEV(lg::get(), DEBUG)
-                          << "Found dynamic call-site: ");
-            LOG_IF_ENABLE(BOOST_LOG_SEV(lg::get(), DEBUG)
-                          << "  " << llvmIRToString(CS));
-            IndirectCalls[&I] = 0;
-            FixpointReached = false;
+          if (llvm::isa<llvm::InlineAsm>(SV)) {
             continue;
           }
+          // the function call must be resolved dynamically
+          LOG_IF_ENABLE(BOOST_LOG_SEV(lg::get(), DEBUG)
+                        << "Found dynamic call-site: "
+                        << "  " << llvmIRToString(CS));
+          IndirectCalls[CS] = 0;
+
+          FixpointReached = false;
+          continue;
         }
-
-        LOG_IF_ENABLE(BOOST_LOG_SEV(lg::get(), DEBUG)
-                      << "Found " << PossibleTargets.size()
-                      << " possible target(s)");
-
-        Resolver.handlePossibleTargets(CS, PossibleTargets);
-        // Insert possible target inside the graph and add the link with
-        // the current function
-        for (const auto &PossibleTarget : PossibleTargets) {
-          vertex_t TargetVertex;
-          auto TargetFvmItr = FunctionVertexMap.find(PossibleTarget);
-          if (TargetFvmItr != FunctionVertexMap.end()) {
-            TargetVertex = TargetFvmItr->second;
-          } else {
-            TargetVertex =
-                boost::add_vertex(VertexProperties(PossibleTarget), CallGraph);
-            FunctionVertexMap[PossibleTarget] = TargetVertex;
-          }
-          boost::add_edge(ThisFunctionVertexDescriptor, TargetVertex,
-                          EdgeProperties(CS), CallGraph);
-        }
-
-        // continue resolving
-        for (const auto *PossibleTarget : PossibleTargets) {
-          FunctionWL.push(PossibleTarget);
-        }
-
-        Resolver.postCall(&I);
-      } else {
-        Resolver.otherInst(&I);
       }
+
+      LOG_IF_ENABLE(BOOST_LOG_SEV(lg::get(), DEBUG)
+                    << "Found " << PossibleTargets.size()
+                    << " possible target(s)");
+
+      Resolver.handlePossibleTargets(CS, PossibleTargets);
+      // Insert possible target inside the graph and add the link with
+      // the current function
+      for (const auto &PossibleTarget : PossibleTargets) {
+        vertex_t TargetVertex;
+        auto TargetFvmItr = FunctionVertexMap.find(PossibleTarget);
+        if (TargetFvmItr != FunctionVertexMap.end()) {
+          TargetVertex = TargetFvmItr->second;
+        } else {
+          TargetVertex =
+              boost::add_vertex(VertexProperties(PossibleTarget), CallGraph);
+          FunctionVertexMap[PossibleTarget] = TargetVertex;
+        }
+        boost::add_edge(ThisFunctionVertexDescriptor, TargetVertex,
+                        EdgeProperties(CS), CallGraph);
+      }
+
+      // continue resolving
+      FunctionWL.insert(FunctionWL.end(), PossibleTargets.begin(),
+                        PossibleTargets.end());
+
+      Resolver.postCall(&I);
+    } else {
+      Resolver.otherInst(&I);
     }
+    PossibleTargets.clear();
   }
 }
 
 bool LLVMBasedICFG::constructDynamicCall(const llvm::Instruction *I,
                                          Resolver &Resolver) {
+
   bool NewTargetsFound = false;
   // Find vertex of calling function.
   vertex_t ThisFunctionVertexDescriptor;
@@ -317,22 +331,22 @@ bool LLVMBasedICFG::constructDynamicCall(const llvm::Instruction *I,
     std::terminate();
   }
 
-  if (llvm::isa<llvm::CallInst>(I) || llvm::isa<llvm::InvokeInst>(I)) {
+  if (const auto *CallSite = llvm::dyn_cast<llvm::CallBase>(I)) {
     Resolver.preCall(I);
-    const auto *CallSite = llvm::cast<llvm::CallBase>(I);
-    set<const llvm::Function *> PossibleTargets;
+
     // the function call must be resolved dynamically
     LOG_IF_ENABLE(BOOST_LOG_SEV(lg::get(), DEBUG)
                   << "Looking into dynamic call-site: ");
     LOG_IF_ENABLE(BOOST_LOG_SEV(lg::get(), DEBUG) << "  " << llvmIRToString(I));
     // call the resolve routine
-    if (LLVMBasedICFG::isVirtualFunctionCall(CallSite)) {
-      PossibleTargets = Resolver.resolveVirtualCall(CallSite);
-    } else {
-      PossibleTargets = Resolver.resolveFunctionPointer(CallSite);
-    }
-    if (IndirectCalls.count(I) == 0 ||
-        IndirectCalls[I] < PossibleTargets.size()) {
+
+    auto PossibleTargets = LLVMBasedICFG::isVirtualFunctionCall(CallSite)
+                               ? Resolver.resolveVirtualCall(CallSite)
+                               : Resolver.resolveFunctionPointer(CallSite);
+
+    assert(IndirectCalls.count(I));
+
+    if (IndirectCalls[I] < PossibleTargets.size()) {
       LOG_IF_ENABLE(BOOST_LOG_SEV(lg::get(), DEBUG)
                     << "Found " << PossibleTargets.size() - IndirectCalls[I]
                     << " new possible target(s)");
@@ -367,19 +381,18 @@ bool LLVMBasedICFG::constructDynamicCall(const llvm::Instruction *I,
     }
 
     // continue resolving
-    for (const auto *PossibleTarget : PossibleTargets) {
-      FunctionWL.push(PossibleTarget);
-    }
+    FunctionWL.insert(FunctionWL.end(), PossibleTargets.begin(),
+                      PossibleTargets.end());
 
     Resolver.postCall(I);
   } else {
     Resolver.otherInst(I);
   }
+
   return NewTargetsFound;
 }
 
 std::unique_ptr<Resolver> LLVMBasedICFG::makeResolver(ProjectIRDB &IRDB,
-                                                      CallGraphAnalysisType CGT,
                                                       LLVMTypeHierarchy &TH,
                                                       LLVMPointsToInfo &PT) {
   switch (CGType) {
@@ -405,12 +418,15 @@ std::unique_ptr<Resolver> LLVMBasedICFG::makeResolver(ProjectIRDB &IRDB,
 }
 
 bool LLVMBasedICFG::isIndirectFunctionCall(const llvm::Instruction *N) const {
-  const llvm::CallBase *CallSite = llvm::cast<llvm::CallBase>(N);
-  return CallSite->isIndirectCall();
+  const auto *CallSite = llvm::dyn_cast<llvm::CallBase>(N);
+  return CallSite && CallSite->isIndirectCall();
 }
 
 bool LLVMBasedICFG::isVirtualFunctionCall(const llvm::Instruction *N) const {
-  const llvm::CallBase *CallSite = llvm::cast<llvm::CallBase>(N);
+  const auto *CallSite = llvm::dyn_cast<llvm::CallBase>(N);
+  if (!CallSite) {
+    return false;
+  }
   // check potential receiver type
   const auto *RecType = getReceiverType(CallSite);
   if (!RecType) {
@@ -429,18 +445,33 @@ const llvm::Function *LLVMBasedICFG::getFunction(const string &Fun) const {
   return IRDB.getFunction(Fun);
 }
 
+const llvm::Function *LLVMBasedICFG::getFirstGlobalCtorOrNull() const {
+  auto It = GlobalCtors.begin();
+  if (It != GlobalCtors.end()) {
+    return It->second;
+  }
+  return nullptr;
+}
+const llvm::Function *LLVMBasedICFG::getLastGlobalDtorOrNull() const {
+  auto It = GlobalDtors.rbegin();
+  if (It != GlobalDtors.rend()) {
+    return It->second;
+  }
+  return nullptr;
+}
+
 set<const llvm::Function *> LLVMBasedICFG::getAllFunctions() const {
   return IRDB.getAllFunctions();
 }
 
 boost::container::flat_set<const llvm::Function *>
 LLVMBasedICFG::getAllVertexFunctions() const {
-  boost::container::flat_set<const llvm::Function *> vertexFuncs;
-  vertexFuncs.reserve(FunctionVertexMap.size());
-  for (auto v : FunctionVertexMap) {
-    vertexFuncs.insert(v.first);
+  boost::container::flat_set<const llvm::Function *> VertexFuncs;
+  VertexFuncs.reserve(FunctionVertexMap.size());
+  for (auto V : FunctionVertexMap) {
+    VertexFuncs.insert(V.first);
   }
-  return vertexFuncs;
+  return VertexFuncs;
 }
 
 std::vector<const llvm::Instruction *>
@@ -520,26 +551,52 @@ size_t LLVMBasedICFG::getCallerCount(const llvm::Function *F) const {
 
 set<const llvm::Function *>
 LLVMBasedICFG::getCalleesOfCallAt(const llvm::Instruction *N) const {
-  if (llvm::isa<llvm::CallInst>(N) || llvm::isa<llvm::InvokeInst>(N)) {
-    set<const llvm::Function *> Callees;
-    auto MapEntry = FunctionVertexMap.find(N->getFunction());
-    if (MapEntry == FunctionVertexMap.end()) {
-      return Callees;
-    }
-    out_edge_iterator EI;
-
-    out_edge_iterator EIEnd;
-    for (boost::tie(EI, EIEnd) = boost::out_edges(MapEntry->second, CallGraph);
-         EI != EIEnd; ++EI) {
-      auto Edge = CallGraph[*EI];
-      if (N == Edge.CS) {
-        auto Target = boost::target(*EI, CallGraph);
-        Callees.insert(CallGraph[Target].F);
-      }
-    }
-    return Callees;
-  } else {
+  if (!llvm::isa<llvm::CallBase>(N)) {
     return {};
+  }
+
+  auto MapEntry = FunctionVertexMap.find(N->getFunction());
+  if (MapEntry == FunctionVertexMap.end()) {
+    return {};
+  }
+
+  set<const llvm::Function *> Callees;
+
+  out_edge_iterator EI;
+  out_edge_iterator EIEnd;
+  for (boost::tie(EI, EIEnd) = boost::out_edges(MapEntry->second, CallGraph);
+       EI != EIEnd; ++EI) {
+    auto Edge = CallGraph[*EI];
+    if (N == Edge.CS) {
+      auto Target = boost::target(*EI, CallGraph);
+      Callees.insert(CallGraph[Target].F);
+    }
+  }
+  return Callees;
+}
+
+void LLVMBasedICFG::forEachCalleeOfCallAt(
+    const llvm::Instruction *I,
+    llvm::function_ref<void(const llvm::Function *)> Callback) const {
+  if (!llvm::isa<llvm::CallInst>(I) && !llvm::isa<llvm::InvokeInst>(I)) {
+    return;
+  }
+
+  auto MapEntry = FunctionVertexMap.find(I->getFunction());
+  if (MapEntry == FunctionVertexMap.end()) {
+    return;
+  }
+
+  out_edge_iterator EI;
+
+  out_edge_iterator EIEnd;
+  for (boost::tie(EI, EIEnd) = boost::out_edges(MapEntry->second, CallGraph);
+       EI != EIEnd; ++EI) {
+    auto Edge = CallGraph[*EI];
+    if (I == Edge.CS) {
+      auto Target = boost::target(*EI, CallGraph);
+      Callback(CallGraph[Target].F);
+    }
   }
 }
 
@@ -564,10 +621,9 @@ LLVMBasedICFG::getCallersOf(const llvm::Function *F) const {
 set<const llvm::Instruction *>
 LLVMBasedICFG::getCallsFromWithin(const llvm::Function *F) const {
   set<const llvm::Instruction *> CallSites;
-  for (llvm::const_inst_iterator I = llvm::inst_begin(F), E = llvm::inst_end(F);
-       I != E; ++I) {
-    if (llvm::isa<llvm::CallInst>(*I) || llvm::isa<llvm::InvokeInst>(*I)) {
-      CallSites.insert(&(*I));
+  for (const auto &I : llvm::instructions(F)) {
+    if (llvm::isa<llvm::CallBase>(I)) {
+      CallSites.insert(&I);
     }
   }
   return CallSites;
@@ -582,32 +638,321 @@ LLVMBasedICFG::getCallsFromWithin(const llvm::Function *F) const {
 set<const llvm::Instruction *>
 LLVMBasedICFG::getReturnSitesOfCallAt(const llvm::Instruction *N) const {
   set<const llvm::Instruction *> ReturnSites;
-  if (const auto *Call = llvm::dyn_cast<llvm::CallInst>(N)) {
-    ReturnSites.insert(Call->getNextNode());
-  }
   if (const auto *Invoke = llvm::dyn_cast<llvm::InvokeInst>(N)) {
-    ReturnSites.insert(&Invoke->getNormalDest()->front());
-    ReturnSites.insert(&Invoke->getUnwindDest()->front());
+    const llvm::Instruction *NormalSucc = &Invoke->getNormalDest()->front();
+    auto *UnwindSucc = &Invoke->getUnwindDest()->front();
+    if (!IgnoreDbgInstructions &&
+        llvm::isa<llvm::DbgInfoIntrinsic>(NormalSucc)) {
+      NormalSucc = NormalSucc->getNextNonDebugInstruction(
+          false /*Only debug instructions*/);
+    }
+    if (!IgnoreDbgInstructions &&
+        llvm::isa<llvm::DbgInfoIntrinsic>(UnwindSucc)) {
+      UnwindSucc = UnwindSucc->getNextNonDebugInstruction(
+          false /*Only debug instructions*/);
+    }
+    if (NormalSucc != nullptr) {
+      ReturnSites.insert(NormalSucc);
+    }
+    if (UnwindSucc != nullptr) {
+      ReturnSites.insert(UnwindSucc);
+    }
+  } else {
+    auto Succs = getSuccsOf(N);
+    ReturnSites.insert(Succs.begin(), Succs.end());
   }
   return ReturnSites;
 }
 
-std::vector<const llvm::Function *> LLVMBasedICFG::getGlobalCtors() const {
-  std::vector<const llvm::Function *> Result;
+void LLVMBasedICFG::collectGlobalCtors() {
   for (const auto *Module : IRDB.getAllModules()) {
-    auto Part = getGlobalCtorsDtorsImpl(Module, "llvm.global_ctors");
-    Result.insert(Result.begin(), Part.begin(), Part.end());
+    insertGlobalCtorsDtorsImpl(GlobalCtors, Module, "llvm.global_ctors");
+    // auto Part = getGlobalCtorsDtorsImpl(Module, "llvm.global_ctors");
+    // GlobalCtors.insert(GlobalCtors.begin(), Part.begin(), Part.end());
   }
-  return Result;
+
+  // for (auto it = GlobalCtors.cbegin(), end = GlobalCtors.cend(); it != end;
+  //      ++it) {
+  //   GlobalCtorFn.try_emplace(it->second, it);
+  // }
 }
 
-std::vector<const llvm::Function *> LLVMBasedICFG::getGlobalDtors() const {
-  std::vector<const llvm::Function *> Result;
+void LLVMBasedICFG::collectGlobalDtors() {
   for (const auto *Module : IRDB.getAllModules()) {
-    auto Part = getGlobalCtorsDtorsImpl(Module, "llvm.global_dtors");
-    Result.insert(Result.begin(), Part.begin(), Part.end());
+    insertGlobalCtorsDtorsImpl(GlobalDtors, Module, "llvm.global_dtors");
+    // auto Part = getGlobalCtorsDtorsImpl(Module, "llvm.global_dtors");
+    // GlobalDtors.insert(GlobalDtors.begin(), Part.begin(), Part.end());
   }
-  return Result;
+
+  // for (auto it = GlobalDtors.cbegin(), end = GlobalDtors.cend(); it != end;
+  //      ++it) {
+  //   GlobalDtorFn.try_emplace(it->second, it);
+  // }
+}
+
+void LLVMBasedICFG::collectGlobalInitializers() {
+  // get all functions used to initialize global variables
+  forEachGlobalCtor([this](auto *GlobalCtor) {
+    for (const auto &BB : *GlobalCtor) {
+      for (const auto &I : BB) {
+        if (auto Call = llvm::dyn_cast<llvm::CallInst>(&I)) {
+          GlobalInitializers.push_back(Call->getCalledFunction());
+        }
+      }
+    }
+  });
+}
+
+llvm::SmallVector<std::pair<llvm::FunctionCallee, llvm::Value *>, 4>
+collectRegisteredDtorsForModule(const llvm::Module *Mod) {
+  // NOLINTNEXTLINE
+  llvm::SmallVector<std::pair<llvm::FunctionCallee, llvm::Value *>, 4>
+      RegisteredDtors, RegisteredLocalStaticDtors;
+
+  auto *CxaAtExitFn = Mod->getFunction("__cxa_atexit");
+  if (!CxaAtExitFn) {
+    return RegisteredDtors;
+  }
+
+  auto getConstantBitcastArgument = // NOLINT
+      [](llvm::Value *V) -> llvm::Value * {
+    auto *CE = llvm::dyn_cast<llvm::ConstantExpr>(V);
+    if (!CE) {
+      return V;
+    }
+
+    return CE->getOperand(0);
+  };
+
+  for (auto *User : CxaAtExitFn->users()) {
+    auto *Call = llvm::dyn_cast<llvm::CallBase>(User);
+    if (!Call) {
+      continue;
+    }
+
+    auto *DtorOp = llvm::dyn_cast_or_null<llvm::Function>(
+        getConstantBitcastArgument(Call->getArgOperand(0)));
+    auto *DtorArgOp = getConstantBitcastArgument(Call->getArgOperand(1));
+
+    if (!DtorOp || !DtorArgOp) {
+      continue;
+    }
+
+    if (Call->getFunction()->getName().contains("__cxx_global_var_init")) {
+      RegisteredDtors.emplace_back(DtorOp, DtorArgOp);
+    } else {
+      RegisteredLocalStaticDtors.emplace_back(DtorOp, DtorArgOp);
+    }
+  }
+
+  // Destructors of local static variables are registered last, no matter where
+  // they are declared in the source code
+  RegisteredDtors.append(RegisteredLocalStaticDtors.begin(),
+                         RegisteredLocalStaticDtors.end());
+
+  return RegisteredDtors;
+}
+
+std::string getReducedModuleName(const llvm::Module &M) {
+  auto Name = M.getName().str();
+  if (auto Idx = Name.find_last_of('/'); Idx != std::string::npos) {
+    Name.erase(0, Idx + 1);
+  }
+
+  return Name;
+}
+
+llvm::Function *createDtorCallerForModule(
+    llvm::Module *Mod,
+    const llvm::SmallVectorImpl<std::pair<llvm::FunctionCallee, llvm::Value *>>
+        &RegisteredDtors) {
+
+  auto *PhasarDtorCaller = llvm::cast<llvm::Function>(
+      Mod->getOrInsertFunction("__psrGlobalDtorsCaller." +
+                                   getReducedModuleName(*Mod),
+                               llvm::Type::getVoidTy(Mod->getContext()))
+          .getCallee());
+
+  auto *BB =
+      llvm::BasicBlock::Create(Mod->getContext(), "entry", PhasarDtorCaller);
+
+  llvm::IRBuilder<> IRB(BB);
+
+  for (auto It = RegisteredDtors.rbegin(), End = RegisteredDtors.rend();
+       It != End; ++It) {
+    IRB.CreateCall(It->first, {It->second});
+  }
+
+  IRB.CreateRetVoid();
+
+  return PhasarDtorCaller;
+}
+
+llvm::Function *LLVMBasedICFG::buildCRuntimeGlobalDtorsModel(llvm::Module &M) {
+
+  if (GlobalDtors.size() == 1) {
+    return GlobalDtors.begin()->second;
+  }
+
+  auto &CTX = M.getContext();
+  auto *Cleanup = llvm::cast<llvm::Function>(
+      M.getOrInsertFunction("__psrCRuntimeGlobalDtorsModel",
+                            llvm::Type::getVoidTy(CTX))
+          .getCallee());
+
+  auto *EntryBB = llvm::BasicBlock::Create(CTX, "entry", Cleanup);
+
+  llvm::IRBuilder<> IRB(EntryBB);
+
+  /// Call all statically/dynamically registered dtors
+
+  for (auto [unused, Dtor] : GlobalDtors) {
+    assert(Dtor);
+    assert(Dtor->arg_empty());
+    IRB.CreateCall(Dtor);
+  }
+
+  IRB.CreateRetVoid();
+
+  return Cleanup;
+}
+
+const llvm::Function *
+LLVMBasedICFG::buildCRuntimeGlobalCtorsDtorsModel(llvm::Module &M) {
+  collectGlobalCtors();
+
+  collectGlobalDtors();
+  collectRegisteredDtors();
+
+  if (!GlobalCleanupFn) {
+    GlobalCleanupFn = buildCRuntimeGlobalDtorsModel(M);
+  }
+
+  auto &CTX = M.getContext();
+  auto *GlobModel = llvm::cast<llvm::Function>(
+      M.getOrInsertFunction(GlobalCRuntimeModelName,
+                            /*retTy*/
+                            llvm::Type::getVoidTy(CTX),
+                            /*argc*/
+                            llvm::Type::getInt32Ty(CTX),
+                            /*argv*/
+                            llvm::Type::getInt8PtrTy(CTX)->getPointerTo())
+          .getCallee());
+
+  auto *EntryBB = llvm::BasicBlock::Create(CTX, "entry", GlobModel);
+
+  llvm::IRBuilder<> IRB(EntryBB);
+
+  /// First, call all global ctors
+
+  for (auto [unused, Ctor] : GlobalCtors) {
+    assert(Ctor != nullptr);
+    assert(Ctor->arg_size() == 0);
+
+    IRB.CreateCall(Ctor);
+  }
+
+  /// After all ctors have been called, now go for the user-defined entrypoints
+
+  assert(!UserEntryPoints.empty());
+
+  auto callUEntry = [&](llvm::Function *UEntry) { // NOLINT
+    switch (UEntry->arg_size()) {
+    case 0:
+      IRB.CreateCall(UEntry);
+      break;
+    case 2:
+      if (UEntry->getName() != "main") {
+        std::cerr << "ERROR: The only entrypoint, where parameters are "
+                     "supported, is main\n";
+        break;
+      }
+
+      IRB.CreateCall(UEntry, {GlobModel->getArg(0), GlobModel->getArg(1)});
+      break;
+    default:
+      std::cerr << "ERROR: Entrypoints with parameters are not supported, "
+                   "except for argc and argv in main\n";
+      break;
+    }
+
+    if (UEntry->getName() == "main") {
+      ///  After the main function, we must call all global destructors...
+      IRB.CreateCall(GlobalCleanupFn);
+    }
+  };
+
+  if (UserEntryPoints.size() == 1) {
+    auto *MainFn = *UserEntryPoints.begin();
+    callUEntry(MainFn);
+    IRB.CreateRetVoid();
+  } else {
+
+    auto *UEntrySelectorFn = llvm::cast<llvm::Function>(
+        M.getOrInsertFunction("__psrCRuntimeUserEntrySelector",
+                              llvm::Type::getInt32Ty(CTX))
+            .getCallee());
+
+    auto *UEntrySelector = IRB.CreateCall(UEntrySelectorFn, {});
+
+    auto *DefaultBB = llvm::BasicBlock::Create(CTX, "invalid", GlobModel);
+    auto *SwitchEnd = llvm::BasicBlock::Create(CTX, "switchEnd", GlobModel);
+
+    auto *UEntrySwitch =
+        IRB.CreateSwitch(UEntrySelector, DefaultBB, UserEntryPoints.size());
+
+    IRB.SetInsertPoint(DefaultBB);
+    IRB.CreateUnreachable();
+
+    unsigned Idx = 0;
+
+    for (auto *UEntry : UserEntryPoints) {
+      auto *BB =
+          llvm::BasicBlock::Create(CTX, "call" + UEntry->getName(), GlobModel);
+      IRB.SetInsertPoint(BB);
+      callUEntry(UEntry);
+      IRB.CreateBr(SwitchEnd);
+
+      UEntrySwitch->addCase(IRB.getInt32(Idx), BB);
+
+      ++Idx;
+    }
+
+    /// After all user-entries have been called, we are done
+
+    IRB.SetInsertPoint(SwitchEnd);
+    IRB.CreateRetVoid();
+  }
+
+  ModulesToSlotTracker::updateMSTForModule(&M);
+
+  return GlobModel;
+}
+
+void LLVMBasedICFG::collectRegisteredDtors() {
+
+  for (auto *Mod : IRDB.getAllModules()) {
+    LOG_IF_ENABLE(BOOST_LOG_SEV(lg::get(), DEBUG)
+                  << "Collect Registered Dtors for Module "
+                  << Mod->getName().str());
+
+    auto RegisteredDtors = collectRegisteredDtorsForModule(Mod);
+
+    if (RegisteredDtors.empty()) {
+      continue;
+    }
+
+    LOG_IF_ENABLE(BOOST_LOG_SEV(lg::get(), DEBUG)
+                  << "> Found " << RegisteredDtors.size()
+                  << " Registered Dtors");
+
+    auto *RegisteredDtorCaller =
+        createDtorCallerForModule(Mod, RegisteredDtors);
+    // auto It =
+    GlobalDtors.emplace(0, RegisteredDtorCaller);
+    // GlobalDtorFn.try_emplace(RegisteredDtorCaller, it);
+    GlobalRegisteredDtorsCaller.try_emplace(Mod, RegisteredDtorCaller);
+  }
 }
 
 /**
@@ -619,8 +964,7 @@ set<const llvm::Instruction *> LLVMBasedICFG::allNonCallStartNodes() const {
     for (auto &F : *M) {
       for (auto &BB : F) {
         for (auto &I : BB) {
-          if ((!llvm::isa<llvm::CallInst>(&I)) &&
-              (!llvm::isa<llvm::InvokeInst>(&I)) && (!isStartPoint(&I))) {
+          if (!llvm::isa<llvm::CallBase>(&I) && !isStartPoint(&I)) {
             NonCallStartNodes.insert(&I);
           }
         }
@@ -751,6 +1095,163 @@ nlohmann::json LLVMBasedICFG::getAsJson() const {
 
 void LLVMBasedICFG::printAsJson(std::ostream &OS) const { OS << getAsJson(); }
 
+nlohmann::json LLVMBasedICFG::exportICFGAsJson() const {
+  nlohmann::json J;
+
+  llvm::DenseSet<const llvm::Instruction *> HandledCallSites;
+
+  for (const auto *F : getAllFunctions()) {
+    for (auto &[From, To] : getAllControlFlowEdges(F)) {
+      if (llvm::isa<llvm::UnreachableInst>(From)) {
+        continue;
+      }
+
+      if (const auto *Call = llvm::dyn_cast<llvm::CallBase>(From)) {
+        auto [unused, inserted] = HandledCallSites.insert(Call);
+
+        for (const auto *Callee : getCalleesOfCallAt(Call)) {
+          if (Callee->isDeclaration()) {
+            continue;
+          }
+          if (inserted) {
+            J.push_back(
+                {{"from", llvmIRToStableString(From)},
+                 {"to", llvmIRToStableString(&Callee->front().front())}});
+          }
+
+          for (const auto *ExitInst : getAllExitPoints(Callee)) {
+            J.push_back({{"from", llvmIRToStableString(ExitInst)},
+                         {"to", llvmIRToStableString(To)}});
+          }
+        }
+
+      } else {
+        J.push_back({{"from", llvmIRToStableString(From)},
+                     {"to", llvmIRToStableString(To)}});
+      }
+    }
+  }
+
+  return J;
+}
+
+nlohmann::json LLVMBasedICFG::exportICFGAsSourceCodeJson() const {
+  nlohmann::json J;
+
+  auto isRetVoid = // NOLINT
+      [](const llvm::Instruction *Inst) {
+        const auto *Ret = llvm::dyn_cast<llvm::ReturnInst>(Inst);
+        return Ret && !Ret->getReturnValue();
+      };
+
+  auto getLastNonEmpty = // NOLINT
+      [&](const llvm::Instruction *Inst) -> SourceCodeInfoWithIR {
+    if (!isRetVoid(Inst) || !Inst->getPrevNode()) {
+      return {getSrcCodeInfoFromIR(Inst), llvmIRToStableString(Inst)};
+    }
+    for (const auto *Prev = Inst->getPrevNode(); Prev;
+         Prev = Prev->getPrevNode()) {
+      auto Src = getSrcCodeInfoFromIR(Prev);
+      if (!Src.empty()) {
+        return {Src, llvmIRToStableString(Prev)};
+      }
+    }
+
+    return {getSrcCodeInfoFromIR(Inst), llvmIRToStableString(Inst)};
+  };
+
+  auto createInterEdges = // NOLINT
+      [&](const llvm::Instruction *CS, const SourceCodeInfoWithIR &From,
+          std::initializer_list<SourceCodeInfoWithIR> Tos) {
+        for (const auto *Callee : getCalleesOfCallAt(CS)) {
+          if (Callee->isDeclaration()) {
+            continue;
+          }
+
+          // Call Edge
+          auto InterTo = getFirstNonEmpty(&Callee->front());
+          J.push_back({{"from", From}, {"to", std::move(InterTo)}});
+
+          // Return Edges
+          for (const auto *ExitInst : getAllExitPoints(Callee)) {
+            for (const auto &To : Tos) {
+              J.push_back({{"from", getLastNonEmpty(ExitInst)}, {"to", To}});
+            }
+          }
+        }
+      };
+
+  for (const auto *F : getAllFunctions()) {
+    for (const auto &BB : *F) {
+      assert(!BB.empty() && "Invalid IR: Empty BasicBlock");
+      auto It = BB.begin();
+      auto End = BB.end();
+      auto From = getFirstNonEmpty(It, End);
+
+      if (It == End) {
+        continue;
+      }
+
+      const auto *FromInst = &*It;
+
+      ++It;
+
+      // Edges inside the BasicBlock
+      for (; It != End; ++It) {
+        auto To = getFirstNonEmpty(It, End);
+        if (To.empty()) {
+          break;
+        }
+
+        if (const auto *Call = llvm::dyn_cast<llvm::CallBase>(FromInst)) {
+          // Call- and Return Edges
+          createInterEdges(FromInst, From, {To});
+        } else if (From != To && !isRetVoid(&*It)) {
+          // Normal Edge
+          J.push_back({{"from", From}, {"to", To}});
+        }
+
+        FromInst = &*It;
+        From = std::move(To);
+      }
+
+      const auto *Term = BB.getTerminator();
+      assert(Term && "Invalid IR: BasicBlock without terminating instruction!");
+
+      auto NumSuccessors = Term->getNumSuccessors();
+
+      if (NumSuccessors == 0) {
+        // Return edges already handled
+      } else if (const auto *Invoke = llvm::dyn_cast<llvm::InvokeInst>(Term)) {
+        // Invoke Edges (they are not handled by the Call edges, because they
+        // are always terminator instructions)
+
+        // Note: The unwindDest is never reachable from a return instruction.
+        // However, this is how it is modeled in the ICFG at the moment
+        createInterEdges(Term,
+                         SourceCodeInfoWithIR{getSrcCodeInfoFromIR(Term),
+                                              llvmIRToStableString(Term)},
+                         {getFirstNonEmpty(Invoke->getNormalDest()),
+                          getFirstNonEmpty(Invoke->getUnwindDest())});
+        // Call Edges
+      } else {
+        // Branch Edges
+        for (size_t I = 0; I < NumSuccessors; ++I) {
+          auto *Succ = Term->getSuccessor(I);
+          assert(Succ && !Succ->empty());
+
+          auto To = getFirstNonEmpty(Succ);
+          if (From != To) {
+            J.push_back({{"from", From}, {"to", std::move(To)}});
+          }
+        }
+      }
+    }
+  }
+
+  return J;
+}
+
 vector<const llvm::Function *> LLVMBasedICFG::getDependencyOrderedFunctions() {
   vector<vertex_t> Vertices;
   vector<const llvm::Function *> Functions;
@@ -764,10 +1265,22 @@ vector<const llvm::Function *> LLVMBasedICFG::getDependencyOrderedFunctions() {
   return Functions;
 }
 
-unsigned LLVMBasedICFG::getNumOfVertices() {
+unsigned LLVMBasedICFG::getNumOfVertices() const {
   return boost::num_vertices(CallGraph);
 }
 
-unsigned LLVMBasedICFG::getNumOfEdges() { return boost::num_edges(CallGraph); }
+unsigned LLVMBasedICFG::getNumOfEdges() const {
+  return boost::num_edges(CallGraph);
+}
+
+const llvm::Function *
+LLVMBasedICFG::getRegisteredDtorsCallerOrNull(const llvm::Module *Mod) {
+  auto It = GlobalRegisteredDtorsCaller.find(Mod);
+  if (It != GlobalRegisteredDtorsCaller.end()) {
+    return It->second;
+  }
+
+  return nullptr;
+}
 
 } // namespace psr

@@ -7,8 +7,8 @@
  *     Philipp Schubert and others
  *****************************************************************************/
 
-#ifndef PHASAR_PHASARLLVM_IFDSIDE_FLOWFACTWRAPPER_H_
-#define PHASAR_PHASARLLVM_IFDSIDE_FLOWFACTWRAPPER_H_
+#ifndef PHASAR_PHASARLLVM_DATAFLOWSOLVER_IFDSIDE_FLOWFACTWRAPPER_H
+#define PHASAR_PHASARLLVM_DATAFLOWSOLVER_IFDSIDE_FLOWFACTWRAPPER_H
 
 #include <iostream>
 #include <map>
@@ -23,8 +23,8 @@ namespace psr {
 
 /// A Wrapper over your dataflow-fact. It already contains a special treatment
 /// for the ZERO (Λ) value. Please create a subclass of this template and
-/// overwrite the print function if necessary. Note, that yout dataflow-fact
-/// must be copy- and move constructible
+/// overwrite the print function if necessary. Note, that your data-flow fact
+/// must be copy- and move constructible.
 template <typename T> class FlowFactWrapper : public FlowFact {
   static_assert(std::is_copy_constructible_v<T> &&
                     std::is_move_constructible_v<T>,
@@ -40,10 +40,10 @@ public:
   FlowFactWrapper(const T &F) : Fact(F) {}
   FlowFactWrapper(T &&F) : Fact(std::move(F)) {}
   ~FlowFactWrapper() override = default;
-  const std::optional<T> &get() const { return Fact; }
-  bool isZero() const { return !Fact; }
+  [[nodiscard]] const std::optional<T> &get() const { return Fact; }
+  [[nodiscard]] bool isZero() const { return !Fact; }
 
-  void print(std::ostream &OS) const override final {
+  void print(std::ostream &OS) const final {
     if (isZero()) {
       OS << "Λ";
     } else {
@@ -106,9 +106,9 @@ public:
   }
 
   template <typename... Args>
-  std::set<const FlowFact *> getOrCreateFlowFacts(Args &&...args) {
+  std::set<const FlowFact *> getOrCreateFlowFacts(Args &&...Arguments) {
     std::set<const FlowFact *> Ret;
-    (Ret.insert(getOrCreateFlowFact(std::forward<Args>(args))), ...);
+    (Ret.insert(getOrCreateFlowFact(std::forward<Args>(Arguments))), ...);
     return Ret;
   }
 };

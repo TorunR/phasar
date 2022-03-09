@@ -196,6 +196,7 @@ template <typename ICFG_T> struct SlicerAnalysisDomain : public AnalysisDomain {
   using f_t = const llvm::Function *;
   using t_t = const llvm::StructType *;
   using v_t = const llvm::Value *;
+  using l_t = BinaryDomain;
   using c_t = ICFG_T;
   using i_t = ICFG_T;
 };

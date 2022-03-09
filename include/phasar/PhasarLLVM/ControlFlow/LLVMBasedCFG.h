@@ -25,9 +25,13 @@
 #include <string>
 #include <vector>
 
+#include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Function.h"
 
 #include "phasar/PhasarLLVM/ControlFlow/CFG.h"
+#include "phasar/Utils/LLVMIRToSrc.h"
+
+#include "nlohmann/json.hpp"
 
 namespace psr {
 
@@ -82,11 +86,11 @@ public:
 
   [[nodiscard]] bool
   isFallThroughSuccessor(const llvm::Instruction *Inst,
-                         const llvm::Instruction *succ) const override;
+                         const llvm::Instruction *Succ) const override;
 
   [[nodiscard]] bool
   isBranchTarget(const llvm::Instruction *Inst,
-                 const llvm::Instruction *succ) const override;
+                 const llvm::Instruction *Succ) const override;
 
   [[nodiscard]] bool
   isHeapAllocatingFunction(const llvm::Function *Fun) const override;
@@ -112,9 +116,29 @@ public:
   [[nodiscard]] nlohmann::json
   getAsJson(const llvm::Function *Fun) const override;
 
-private:
+  [[nodiscard]] nlohmann::json exportCFGAsJson(const llvm::Function *F) const;
+
+  [[nodiscard]] nlohmann::json
+  exportCFGAsSourceCodeJson(const llvm::Function *F) const;
+
+protected:
   // Ignores debug instructions in control flow if set to true.
   const bool IgnoreDbgInstructions;
+
+  struct SourceCodeInfoWithIR : public SourceCodeInfo {
+    std::string IR;
+  };
+
+  friend void from_json(const nlohmann::json &J, // NOLINT
+                        SourceCodeInfoWithIR &Info);
+  friend void to_json(nlohmann::json &J, // NOLINT
+                      const SourceCodeInfoWithIR &Info);
+
+  /// Used by export(I)CFGAsJson
+  static SourceCodeInfoWithIR
+  getFirstNonEmpty(llvm::BasicBlock::const_iterator &It,
+                   llvm::BasicBlock::const_iterator End);
+  static SourceCodeInfoWithIR getFirstNonEmpty(const llvm::BasicBlock *BB);
 };
 
 } // namespace psr

@@ -1,4 +1,5 @@
 #include "slicer.h"
+#include "phasar/PhasarLLVM/Pointer/LLVMPointsToSet.h"
 #include <llvm/IR/IntrinsicInst.h>
 #include <sys/resource.h>
 
@@ -50,7 +51,11 @@ private:
                            set<const Function *> callees) override {
     return make_shared<CallToRetFlowFunction>(callSite, retSite, callees);
   }
-  map<const Instruction *, set<SlicerFact>> initialSeeds() override {
+
+
+  InitialSeeds<const Instruction*, SlicerFact, BinaryDomain>
+  initialSeeds() override {
+//    map<const Instruction *, set<SlicerFact>>
     for (const auto &entrypoint : entrypoints) {
       const Instruction *i;
       if (std::is_same<ICFG_T, LLVMBasedBackwardsICFG>::value) {
@@ -163,22 +168,26 @@ void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
           for (auto fact : res) {
             if (!fact.isZero()) {
               auto extractedInstruction = fact.getInstruction();
-              //              llvm::dbgs() << "FACT INS: "
-              //                           <<
-              //                           llvmIRToString(fact.getInstruction())
-              //                           << "\n";
-              //              llvm::dbgs() << "SRC: " << *fact.getLocation() <<
-              //              " "
-              //                           <<
-              //                           psr::getSrcCodeFromIR(extractedInstruction)
-              //                           << "\n"
-              //                           << "\n";
+                            llvm::dbgs() << "FACT INS: "
+                                         <<
+                                         llvmIRToString(fact.getInstruction())
+                                         << "\n"
+                                        << llvmIRToString(&i)
+                                          << "\n";
+                            llvm::dbgs() << "SRC: " << *fact.getLocation() <<
+                            " "
+                                         <<
+                                         psr::getSrcCodeFromIR(extractedInstruction)
+                                         << "\n"
+                                         << "\n";
               //              if (extractedInstruction-> == function &&
               //              extractedInstruction == &i || true) {
 
-              const auto ins = dyn_cast<Instruction>(fact.getInstruction());
+              const Instruction* ins = dyn_cast<Instruction>(fact.getInstruction());
+              const auto parent =ins->getParent();
 
-              if (ins && ins->getFunction() == &function) {
+              if (ins && parent && ins->getFunction()
+                             == &function) {
                 slice_instruction[&function].insert(extractedInstruction);
                 const auto *blockExit = ins->getParent()->getTerminator();
                 slice_instruction[&function].insert(blockExit);
@@ -314,9 +323,9 @@ std::string createSlice(string target, const set<string> &entrypoints,
   initializeLogger(false);
   //    initializeLogger(true);
   LLVMTypeHierarchy th(DB);
-  LLVMBasedBackwardsICFG cg(DB, CallGraphAnalysisType::DTA, set(entrypoints),
-                            &th);
-  LLVMBasedICFG fcg(DB, CallGraphAnalysisType::DTA, set(entrypoints), &th);
+  LLVMPointsToSet pt(DB);
+  LLVMBasedICFG fcg(DB,psr::CallGraphAnalysisType::CHA,set(entrypoints),&th,&pt,Soundness::Soundy,true);
+  LLVMBasedBackwardsICFG cg(fcg);
   LLVMPointsToGraph PT(DB);
   map<const Instruction *, set<SlicerFact>> sc;
   for (auto *module : DB.getAllModules()) {

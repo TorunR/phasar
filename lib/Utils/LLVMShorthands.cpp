@@ -14,8 +14,8 @@
  *      Author: philipp
  */
 
+#include <cctype>
 #include <cstdlib>
-#include <llvm/IR/Instruction.h>
 
 #include "boost/algorithm/string/trim.hpp"
 
@@ -26,10 +26,13 @@
 #include "llvm/IR/AbstractCallSite.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/InstIterator.h"
+#include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/ModuleSlotTracker.h"
 #include "llvm/IR/Value.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include "phasar/Config/Configuration.h"
@@ -57,8 +60,8 @@ bool isAllocaInstOrHeapAllocaFunction(const llvm::Value *V) noexcept {
   if (V) {
     if (llvm::isa<llvm::AllocaInst>(V)) {
       return true;
-    } else if (llvm::isa<llvm::CallInst>(V) || llvm::isa<llvm::InvokeInst>(V)) {
-      const llvm::CallBase *CallSite = llvm::cast<llvm::CallBase>(V);
+    }
+    if (const auto *CallSite = llvm::dyn_cast<llvm::CallBase>(V)) {
       return CallSite->getCalledFunction() != nullptr &&
              HeapAllocationFunctions.count(
                  CallSite->getCalledFunction()->getName().str());
@@ -139,21 +142,16 @@ bool matchesSignature(const llvm::FunctionType *FType1,
   return false;
 }
 
-static llvm::ModuleSlotTracker &getModuleSlotTrackerFor(const llvm::Value *V) {
-  static llvm::SmallDenseMap<const llvm::Module *,
-                             std::unique_ptr<llvm::ModuleSlotTracker>, 2>
-      ModuleToSlotTracker;
+llvm::ModuleSlotTracker &getModuleSlotTrackerFor(const llvm::Value *V) {
   const auto *M = getModuleFromVal(V);
-
-  auto &ret = ModuleToSlotTracker[M];
-  if (!ret) {
-    ret = std::make_unique<llvm::ModuleSlotTracker>(M);
-  }
-
-  return *ret;
+  return ModulesToSlotTracker::getSlotTrackerForModule(M);
 }
 
 std::string llvmIRToString(const llvm::Value *V) {
+  if (!V) {
+    return "<null>";
+  }
+
   std::string IRBuffer;
   llvm::raw_string_ostream RSO(IRBuffer);
   V->print(RSO, getModuleSlotTrackerFor(V));
@@ -163,12 +161,44 @@ std::string llvmIRToString(const llvm::Value *V) {
   return IRBuffer;
 }
 
+std::string llvmIRToStableString(const llvm::Value *V) {
+  if (!V) {
+    return "<null>";
+  }
+  std::string IRBuffer;
+  llvm::raw_string_ostream RSO(IRBuffer);
+  V->print(RSO, getModuleSlotTrackerFor(V));
+  RSO.flush();
+
+  auto IRBufferRef = llvm::StringRef(IRBuffer).ltrim();
+
+  if (auto Meta = IRBufferRef.find_first_of("!#");
+      Meta != llvm::StringRef::npos) {
+    IRBufferRef = IRBufferRef.slice(0, Meta).rtrim();
+
+    assert(!IRBufferRef.empty());
+    IRBufferRef.consume_back(",");
+  }
+
+  IRBuffer = IRBufferRef.str();
+
+  IRBuffer.append(" | ID: ");
+  IRBuffer.append(getMetaDataID(V));
+
+  return IRBuffer;
+}
+
 std::string llvmIRToShortString(const llvm::Value *V) {
+  if (!V) {
+    return "<null>";
+  }
   std::string IRBuffer;
   llvm::raw_string_ostream RSO(IRBuffer);
   if (const auto *I = llvm::dyn_cast<llvm::Instruction>(V);
       I && !I->getType()->isVoidTy()) {
     V->printAsOperand(RSO, true, getModuleSlotTrackerFor(V));
+  } else if (const auto *F = llvm::dyn_cast<llvm::Function>(V)) {
+    RSO << F->getName();
   } else {
     V->print(RSO, getModuleSlotTrackerFor(V));
   }
@@ -216,38 +246,24 @@ std::string getMetaDataID(const llvm::Value *V) {
   return "-1";
 }
 
-llvmValueIDLess::llvmValueIDLess() : sless(stringIDLess()) {}
-
-bool llvmValueIDLess::operator()(const llvm::Value *Lhs,
+bool LLVMValueIDLess::operator()(const llvm::Value *Lhs,
                                  const llvm::Value *Rhs) const {
   std::string LhsId = getMetaDataID(Lhs);
   std::string RhsId = getMetaDataID(Rhs);
-  return sless(LhsId, RhsId);
+  return Sless(LhsId, RhsId);
 }
 
 int getFunctionArgumentNr(const llvm::Argument *Arg) {
-  int ArgNr = 0;
-  for (const auto &A : Arg->getParent()->args()) {
-    if (&A == Arg) {
-      return ArgNr;
-    }
-    ++ArgNr;
-  }
-  return -1;
+  return int(Arg->getArgNo());
 }
 
 const llvm::Argument *getNthFunctionArgument(const llvm::Function *F,
                                              unsigned ArgNo) {
-  if (ArgNo < F->arg_size()) {
-    unsigned Current = 0;
-    for (const auto &A : F->args()) {
-      if (ArgNo == Current) {
-        return &A;
-      }
-      ++Current;
-    }
+  if (ArgNo >= F->arg_size()) {
+    return nullptr;
   }
-  return nullptr;
+
+  return F->getArg(ArgNo);
 }
 
 const llvm::Instruction *getLastInstructionOf(const llvm::Function *F) {
@@ -261,12 +277,36 @@ const llvm::Instruction *getNthInstruction(const llvm::Function *F,
     for (const auto &I : BB) {
       if (Current == Idx) {
         return &I;
-      } else {
-        ++Current;
       }
+
+      ++Current;
     }
   }
   return nullptr;
+}
+
+std::vector<const llvm::Instruction *>
+getAllExitPoints(const llvm::Function *F) {
+  std::vector<const llvm::Instruction *> Ret;
+  appendAllExitPoints(F, Ret);
+  return Ret;
+}
+
+void appendAllExitPoints(const llvm::Function *F,
+                         std::vector<const llvm::Instruction *> &ExitPoints) {
+  if (!F) {
+    return;
+  }
+
+  for (const auto &BB : *F) {
+    const auto *Term = BB.getTerminator();
+    assert(Term && "Invalid IR: Each BasicBlock must have a terminator "
+                   "instruction at the end");
+    if (llvm::isa<llvm::ReturnInst>(Term) ||
+        llvm::isa<llvm::ResumeInst>(Term)) {
+      ExitPoints.push_back(Term);
+    }
+  }
 }
 
 const llvm::Module *getModuleFromVal(const llvm::Value *V) {
@@ -358,27 +398,88 @@ const llvm::StoreInst *getNthStoreInstruction(const llvm::Function *F,
   return nullptr;
 }
 
-bool isVarAnnotationIntrinsic(const llvm::Function *F) {
-  static const llvm::StringRef kVarAnnotationName("llvm.var.annotation");
-  return F->getName() == kVarAnnotationName;
+bool isGuardVariable(const llvm::Value *V) {
+  if (const auto *ConstBitcast = llvm::dyn_cast<llvm::ConstantExpr>(V);
+      ConstBitcast && ConstBitcast->isCast()) {
+    V = ConstBitcast->getOperand(0);
+  }
+  if (const auto *GV = llvm::dyn_cast<llvm::GlobalVariable>(V)) {
+    // ZGV is the encoding of "GuardVariable"
+    return GV->getName().startswith("_ZGV");
+  }
+  return false;
 }
 
-const llvm::StringRef
-getVarAnnotationIntrinsicName(const llvm::CallInst *CallInst) {
-  const int kPointerGlobalStringIdx = 1;
-  llvm::ConstantExpr *ce = llvm::cast<llvm::ConstantExpr>(
-      CallInst->getOperand(kPointerGlobalStringIdx));
-  assert(ce != nullptr);
-  assert(ce->getOpcode() == llvm::Instruction::GetElementPtr);
-  assert(llvm::dyn_cast<llvm::GlobalVariable>(ce->getOperand(0)) != nullptr);
-  llvm::GlobalVariable *annoteStr =
-      llvm::dyn_cast<llvm::GlobalVariable>(ce->getOperand(0));
-  assert(llvm::dyn_cast<llvm::ConstantDataSequential>(
-      annoteStr->getInitializer()));
-  llvm::ConstantDataSequential *data =
-      llvm::dyn_cast<llvm::ConstantDataSequential>(annoteStr->getInitializer());
-  assert(data->isString());
-  return data->getAsString();
+bool isStaticVariableLazyInitializationBranch(const llvm::BranchInst *Inst) {
+  if (Inst->isUnconditional()) {
+    return false;
+  }
+
+  auto *Condition = Inst->getCondition();
+
+  if (auto *Cmp = llvm::dyn_cast<llvm::ICmpInst>(Condition);
+      Cmp && llvm::ICmpInst::isEquality(Cmp->getPredicate())) {
+    for (auto *Op : Cmp->operand_values()) {
+      if (auto *Load = llvm::dyn_cast<llvm::LoadInst>(Op);
+          Load && Load->isAtomic()) {
+
+        if (isGuardVariable(Load->getPointerOperand())) {
+          return true;
+        }
+      } else if (auto *Call = llvm::dyn_cast<llvm::CallBase>(Op)) {
+        auto *CalledFunction = Call->getCalledFunction();
+        if (CalledFunction &&
+            CalledFunction->getName() == "__cxa_guard_acquire") {
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
+bool isVarAnnotationIntrinsic(const llvm::Function *F) {
+  static constexpr llvm::StringLiteral KVarAnnotationName(
+      "llvm.var.annotation");
+  return F->getName() == KVarAnnotationName;
+}
+
+llvm::StringRef getVarAnnotationIntrinsicName(const llvm::CallInst *CallInst) {
+  const int KPointerGlobalStringIdx = 1;
+  auto *CE = llvm::cast<llvm::ConstantExpr>(
+      CallInst->getOperand(KPointerGlobalStringIdx));
+  assert(CE != nullptr);
+  assert(CE->getOpcode() == llvm::Instruction::GetElementPtr);
+  assert(llvm::dyn_cast<llvm::GlobalVariable>(CE->getOperand(0)) != nullptr);
+
+  auto *AnnoteStr = llvm::dyn_cast<llvm::GlobalVariable>(CE->getOperand(0));
+  assert(AnnoteStr != nullptr && llvm::dyn_cast<llvm::ConstantDataSequential>(
+                                     AnnoteStr->getInitializer()));
+
+  auto *Data =
+      llvm::dyn_cast<llvm::ConstantDataSequential>(AnnoteStr->getInitializer());
+
+  // getAsCString to get rid of the null-terminator
+  assert(Data->isCString());
+  return Data->getAsCString();
+}
+
+llvm::ModuleSlotTracker &
+ModulesToSlotTracker::getSlotTrackerForModule(const llvm::Module *M) {
+  auto &Ret = MToST[M];
+  if (M == nullptr && Ret == nullptr) {
+    Ret = std::make_unique<llvm::ModuleSlotTracker>(M);
+  }
+  assert(Ret != nullptr && "no ModuleSlotTracker instance for module cached");
+  return *Ret;
+}
+
+void ModulesToSlotTracker::updateMSTForModule(const llvm::Module *M) {
+  MToST[M] = std::make_unique<llvm::ModuleSlotTracker>(M);
+}
+void ModulesToSlotTracker::deleteMSTForModule(const llvm::Module *M) {
+  MToST.erase(M);
 }
 
 } // namespace psr
