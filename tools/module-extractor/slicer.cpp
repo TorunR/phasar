@@ -168,18 +168,18 @@ void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
           for (auto fact : res) {
             if (!fact.isZero()) {
               auto extractedInstruction = fact.getInstruction();
-                            llvm::dbgs() << "FACT INS: "
-                                         <<
-                                         llvmIRToString(fact.getInstruction())
-                                         << "\n"
-                                        << llvmIRToString(&i)
-                                          << "\n";
-                            llvm::dbgs() << "SRC: " << *fact.getLocation() <<
-                            " "
-                                         <<
-                                         psr::getSrcCodeFromIR(extractedInstruction)
-                                         << "\n"
-                                         << "\n";
+//                            llvm::dbgs() << "FACT INS: "
+//                                         <<
+//                                         llvmIRToString(fact.getInstruction())
+//                                         << "\n"
+//                                        << llvmIRToString(&i)
+//                                          << "\n";
+//                            llvm::dbgs() << "SRC: " << *fact.getLocation() <<
+//                            " "
+//                                         <<
+//                                         psr::getSrcCodeFromIR(extractedInstruction)
+//                                         << "\n"
+//                                         << "\n";
               //              if (extractedInstruction-> == function &&
               //              extractedInstruction == &i || true) {
 
@@ -334,6 +334,30 @@ std::string createSlice(string target, const set<string> &entrypoints,
         auto sub = function.getSubprogram();
         for (const auto &i : bb) {
           set<SlicerFact> facts;
+          if (const auto call = dyn_cast<CallInst>(&i)) {
+          if (call->getCalledFunction()->getName() == "__mark_location") {
+            llvm::dbgs() << llvmIRToString(call) << "\n";
+            llvm::dbgs() << call->getCalledFunction()->getName() << "\n";
+              for (auto& op: call->operands()) {
+
+                llvm::dbgs() << llvmIRToString(op.get()) << "\n";
+
+
+                if (auto* gep = dyn_cast<ConstantExpr>(op.get())) {
+                  llvm::dbgs() << llvmIRToString(gep->getOperand(0))  << "\n";
+                  if (auto* gv = dyn_cast<GlobalVariable> (gep->getOperand(0))) {
+                    if (auto* cs  =dyn_cast<ConstantDataArray>(gv->getInitializer())) {
+                      llvm::dbgs() << cs->getAsCString() << "\n";
+                    }
+                  } else {
+                    llvm::dbgs() <<"Not STRING" << "\n";
+                  }
+                  llvm::dbgs() << gep << "\t" << gep->isGEPWithNoNotionalOverIndexing() << "\n";
+                }
+              }
+              llvm::dbgs() << call << "\n";
+            }
+          }
           if (auto *debuglog = i.getDebugLoc().get()) {
             auto line = debuglog->getLine();
             auto column = debuglog->getColumn();
