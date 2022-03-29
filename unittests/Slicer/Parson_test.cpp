@@ -1,5 +1,5 @@
 #include "gtest/gtest.h"
-TEST( parson_parse ){
+TEST( parson_parse, parson_parse_001 ){
 
 }
 

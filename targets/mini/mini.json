@@ -1,0 +1,13 @@
+[
+  {
+    "term": "calc",
+    "file": "mini.c",
+    "locations": [
+      {
+        "line": 5,
+        "column": 5,
+        "meta": {}
+      }
+    ]
+  }
+]

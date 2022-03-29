@@ -1,5 +1,8 @@
 #include "slicer.h"
 #include "phasar/PhasarLLVM/Pointer/LLVMPointsToSet.h"
+#include "back_mapper.h"
+#include "include_handling.h"
+
 #include <llvm/IR/IntrinsicInst.h>
 #include <sys/resource.h>
 
@@ -104,7 +107,16 @@ private:
   const std::set<string> &entrypoints;
 };
 
-void copy_files(map<string, set<unsigned int>> &file_lines, string outPath) {
+void copy_files(
+    map<string, set<unsigned int>> &file_lines,
+    map<std::string, std::vector<printer::FileSlice>> &file_slices,
+    map<std::string, std::vector<printer::FileSlice>> &header_slices,
+    const string &outPath, const unordered_set<std::string> &blacklist,
+    const string &compile_commands_path) {
+
+  /**
+   * Slicing based on lines
+   */
   for (const auto &file : file_lines) {
     std::ifstream in(file.first);
     std::ofstream out(
@@ -121,6 +133,45 @@ void copy_files(map<string, set<unsigned int>> &file_lines, string outPath) {
     }
     out.close();
   }
+
+  /**
+   * Slicing based on source information
+   */
+  for (const auto &file : file_slices) {
+    std::string outname =
+        "out" + file.first.substr(file.first.find_last_of("/"), string::npos) +
+        ".slice";
+    std::ofstream Output(outname, std::ios_base::trunc | std::ios_base::out);
+    printer::extractSlicesDefine(file.first, Output, file.second);
+  }
+
+  /**
+   *  Slicing of headers based on source information
+   */
+  for (const auto &file : header_slices) {
+    const std::string filename =
+        file.first.substr(file.first.find_last_of("/") + 1, string::npos);
+    const std::string outname = "out/" + filename + ".h";
+    const auto includes = get_includes_to_extract(file.first, blacklist);
+    printer::extractHeaderSlices(file.first, outname, file.second, filename,
+                                 includes);
+    cleanup_includes(file.first, outname, compile_commands_path);
+  }
+
+  /**
+   * Slicing into one file based on source information
+   */
+  {
+    const std::string outname = "out/" + outPath + ".c.slice";
+    std::ofstream Output(outname, std::ios_base::ate | std::ios_base::out);
+    for (const auto &file : file_slices) {
+      printer::extractSlicesDefine(file.first, Output, file.second);
+    }
+  }
+
+  /**
+   * Slicing into one file based on lines
+   */
   if (true) {
     std::ofstream out("out/" + outPath + ".c");
     for (const auto &file : file_lines) {
@@ -146,13 +197,17 @@ void copy_files(map<string, set<unsigned int>> &file_lines, string outPath) {
 
 template <typename AnalysisDomainTy>
 void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
-                     LLVMBasedBackwardsICFG &cg, string outPath) {
+                     LLVMBasedBackwardsICFG &cg, string outPath,
+                     const unordered_set<string> &blacklist,
+                     const string &compile_commands_dir) {
+  map<string, std::vector<printer::FileSlice>> file_slices;
+  map<string, std::vector<printer::FileSlice>> header_slices;
   map<const Function *, set<const llvm::Value *>> slice_instruction;
   llvm::dbgs() << "SOLVING DONE\n";
   for (auto *const module : DB.getAllModules()) {
     for (auto &function : module->functions()) {
       auto fun_name = function.getName();
-      llvm::dbgs() << "\n\n\n" << fun_name << "\n\n\n";
+      //  llvm::dbgs() << "\n\n\n" << fun_name << "\n\n\n";
       bool isUsed = false;
       for (auto &bb : function) {
         for (const auto &i : bb) {
@@ -240,11 +295,11 @@ void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
       }
     }
   }
-  cout << "\n";
-  llvm::dbgs() << "\n"
-               << "\n"
-               << "\n"
-               << "\n";
+  //  cout << "\n";
+  //  llvm::dbgs() << "\n"
+  //               << "\n"
+  //               << "\n"
+  //               << "\n";
   map<std::string, set<unsigned int>> file_lines;
   for (auto &p : slice_instruction) {
     llvm::dbgs() << "F:\t" << p.first->getName() << "\t" << p.second.size()
@@ -256,7 +311,6 @@ void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
     for (const auto &s : p.second) {
       if (first) {
         auto line = psr::getLineFromIR(p.first);
-        llvm::dbgs() << psr::getSrcCodeFromIR(p.first) << "\t" << line << "\n";
         auto end_line = psr::getFunctionHeaderLines(p.first);
         for (unsigned int l = line; l <= end_line; ++l) {
           file_lines[file].insert(l);
@@ -278,7 +332,7 @@ void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
         auto line = psr::getLineFromIR(s);
         auto src = psr::getSrcCodeFromIR(s);
 
-        llvm::dbgs() << *s << "\t" << src << "\t" << line << "\n";
+        // llvm::dbgs() << *s << "\t" << src << "\t" << line << "\n";
         file_lines[file].insert(line);
         if (auto *inst = dyn_cast<Instruction>(s)) {
           for (unsigned int i = 0; i < inst->getNumOperands(); ++i) {
@@ -292,6 +346,7 @@ void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
             if (auto *scope =
                     dyn_cast<DILexicalBlock>(inst->getDebugLoc().getScope())) {
               block_lines.insert(line);
+              file_lines[file].insert(line);
               file_lines[file].insert(scope->getLine());
             }
           }
@@ -309,17 +364,22 @@ void process_results(ProjectIRDB &DB, IFDSSolver<AnalysisDomainTy> &solver,
         }
       }
     }
-    auto lines = add_block(file, &block_lines);
-    for (auto line : *lines) {
-      file_lines[file].insert(line);
-    }
   }
-  copy_files(file_lines, outPath);
+  for (const auto &f : file_lines) {
+    const auto slices = add_block(f.first, &f.second);
+    file_slices.emplace(f.first, slices.first);
+    header_slices.emplace(f.first, slices.second);
+  }
+
+  copy_files(file_lines, file_slices, header_slices, outPath, blacklist,
+             compile_commands_dir);
 }
 
 std::string createSlice(string target, const set<string> &entrypoints,
-                        const vector<Term> &terms,string outPath) {
-  ProjectIRDB DB({std::move(target)}, IRDBOptions::WPA);
+                        const vector<Term> &terms, string outPath,
+                        string compileCommandsPath,
+                        const unordered_set<string> &blacklist) {
+  ProjectIRDB DB({target}, IRDBOptions::WPA);
   initializeLogger(false);
   //    initializeLogger(true);
   LLVMTypeHierarchy th(DB);
@@ -419,18 +479,50 @@ std::string createSlice(string target, const set<string> &entrypoints,
                                     entrypoints);
   IFDSSolver solver(slicer);
   solver.solve();
-  ofstream out;
-//  out.open("out/graph.dot");
+  // ofstream out;
+  //  out.open("out/graph.dot");
   //  solver.emitESGAsDot(out);
-  out.close();
-//  out.open("out/results.txt");
+  // out.close();
+  //  out.open("out/results.txt");
   //  solver.dumpResults(out);
-  out.close();
+  // out.close();
   cout << "\n";
-  process_results(DB, solver, cg, outPath);
+  process_results(DB, solver, cg, outPath, blacklist, compileCommandsPath);
   return "";
 }
 
+/**
+ * Reads a blacklist of headers not to slice from the file 'path'. This file
+ * needs to have one blacklisted header in each line
+ * @param path Path to the file to read or 'none' if no blacklist is used
+ * @return A set containing headers not to slice
+ */
+unordered_set<string> read_blacklist(const string &path) {
+  if (path == "none") {
+    return {};
+  }
+  unordered_set<string> blacklist;
+
+  auto trim = [](string str) {
+    str.erase(str.begin(),
+              std::find_if(str.begin(), str.end(),
+                           [](unsigned char c) { return !std::isspace(c); }));
+    str.erase(std::find_if(str.rbegin(), str.rend(),
+                           [](unsigned char c) { return !std::isspace(c); })
+                  .base(),
+              str.end());
+    return str;
+  };
+  ifstream ifs(path);
+  string line;
+  while (getline(ifs, line)) {
+    line = trim(line);
+    if (!line.empty()) {
+      blacklist.insert(line);
+    }
+  }
+  return blacklist;
+}
 int main(int argc, const char **argv) {
   const rlim_t kStackSize = 512 * 1024 * 1024; // min stack size = 128 MB
   struct rlimit rl;
@@ -445,12 +537,16 @@ int main(int argc, const char **argv) {
       }
     }
   }
-  if (argc < 5) {
+  if (argc < 7) {
     cout << "Please provide the correct params" << endl;
+    cout << "Target(.ll); Json config; Output Path; Path to "
+            "compile_commands.json or 'none'; Blacklist file for headers "
+            "to extract or 'none'; entry points ..."
+         << endl;
     // TODO USAGE
     return -1;
   }
-//  std::cout << "Current path is " << bofs::current_path() << '\n';
+  //  std::cout << "Current path is " << bofs::current_path() << '\n';
   const auto target = argv[1];
   std::ifstream in(argv[2]);
   json j;
@@ -458,13 +554,20 @@ int main(int argc, const char **argv) {
   auto terms = j.get<vector<Term>>();
   string outPath = argv[3];
   set<std::string> entrypoints;
-  for (int i = 4; i < argc; ++i) {
+  const string compile_commands_path = argv[4];
+  const string blacklist_path = argv[5];
+
+  const auto blacklist = read_blacklist(blacklist_path);
+
+  for (int i = 6; i < argc; ++i) {
     entrypoints.insert(argv[i]);
     cout << argv[i] << endl;
   }
+
   std::chrono::steady_clock::time_point begin =
       std::chrono::steady_clock::now();
-  createSlice(target, entrypoints, terms,outPath);
+  createSlice(target, entrypoints, terms, outPath, compile_commands_path,
+              blacklist);
   std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
   std::cout << "Time difference = "
             << std::chrono::duration_cast<std::chrono::microseconds>(end -
@@ -486,7 +589,6 @@ int main(int argc, const char **argv) {
   std::cout << "Extracted code is in out/" + outPath + ".c" << std::endl;
   return 0;
 }
-
 
 std::set<SlicerFact> NormalFlowFunction::computeTargets(SlicerFact source) {
   set<SlicerFact> facts;
@@ -666,106 +768,4 @@ RetFlowFunction<ICFG_T>::computeTargets(SlicerFact source) {
   }
 #endif
   return facts;
-}
-
-class RewriteSourceVisitor
-    : public clang::RecursiveASTVisitor<RewriteSourceVisitor> {
-public:
-  RewriteSourceVisitor(clang::ASTContext &context,
-                       std::set<unsigned int> *target_lines,
-                       const shared_ptr<std::set<unsigned int>> &resultingLines)
-      : context(context), target_lines(target_lines),
-        resulting_lines(resultingLines), candidate_lines() {}
-
-  [[maybe_unused]] virtual bool VisitStmt(clang::Stmt *S) {
-    auto es =
-        context.getSourceManager().getExpansionLineNumber(S->getBeginLoc());
-    auto es4 =
-        context.getSourceManager().getExpansionLineNumber(S->getEndLoc());
-    if (es == es4 && target_lines->find(es) != target_lines->end()) {
-      for (auto &l : candidate_lines) {
-        resulting_lines->insert(l);
-      }
-    }
-    return true;
-  }
-
-  [[maybe_unused]] virtual bool VisitDefaultStmt(clang::DefaultStmt *S) {
-    auto line =
-        context.getSourceManager().getExpansionLineNumber(S->getBeginLoc());
-    candidate_lines.insert(line);
-    return true;
-  }
-
-  bool VisitCaseStmt(clang::CaseStmt *S) {
-    auto line =
-        context.getSourceManager().getExpansionLineNumber(S->getBeginLoc());
-    candidate_lines.insert(line);
-    return true;
-  }
-
-  virtual bool VisitBreakStmt(clang::BreakStmt *S) {
-    candidate_lines.clear();
-    return true;
-  }
-
-private:
-  clang::ASTContext &context;
-  std::set<unsigned int> *target_lines;
-  shared_ptr<std::set<unsigned int>> resulting_lines;
-  std::set<unsigned int> candidate_lines;
-};
-
-class RewriteSourceConsumer : public clang::ASTConsumer {
-public:
-  RewriteSourceConsumer(
-      std::set<unsigned int> *target_lines,
-      const shared_ptr<std::set<unsigned int>> &resultingLines)
-      : target_lines(target_lines), resulting_lines(resultingLines) {}
-  virtual void HandleTranslationUnit(clang::ASTContext &Context) {
-    // Traversing the translation unit decl via a RecursiveASTVisitor
-    // will visit all nodes in the AST.
-    //    llvm::dbgs << Context.getTranslationUnitDecl();
-    RewriteSourceVisitor Visitor(Context, target_lines, resulting_lines);
-    Visitor.TraverseDecl(Context.getTranslationUnitDecl());
-  }
-
-private:
-  // A RecursiveASTVisitor implementation.
-
-  std::set<unsigned int> *target_lines;
-  shared_ptr<std::set<unsigned int>> resulting_lines;
-};
-class RewriteSourceAction
-//    : public clang::ASTFrontendAction
-{
-
-public:
-  RewriteSourceAction(std::set<unsigned int> *target_lines,
-                      const shared_ptr<std::set<unsigned int>> &resultingLines)
-      : target_lines(target_lines), resulting_lines(resultingLines) {}
-
-  std::unique_ptr<clang::ASTConsumer> newASTConsumer() {
-    return std::unique_ptr<clang::ASTConsumer>(
-        new RewriteSourceConsumer(target_lines, resulting_lines));
-  }
-
-private:
-  std::set<unsigned int> *target_lines;
-  shared_ptr<std::set<unsigned int>> resulting_lines;
-};
-
-shared_ptr<std::set<unsigned int>>
-add_block(std::string file, std::set<unsigned int> *target_lines) {
-  string err = "ERROR_MY";
-  auto db = clang::tooling::CompilationDatabase::autoDetectFromDirectory(
-      boost::filesystem::path(file).parent_path().string(), err);
-  std::vector<std::string> Sources;
-  Sources.push_back(file);
-  clang::tooling::ClangTool Tool(*db, Sources);
-  auto res = make_shared<std::set<unsigned int>>();
-  Tool.run(clang::tooling::newFrontendActionFactory<RewriteSourceAction>(
-               new RewriteSourceAction(target_lines, res))
-               .get());
-  return res;
 }

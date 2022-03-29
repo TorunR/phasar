@@ -14,6 +14,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS YES)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_VERBOSE_MAKEFILE ON CACHE BOOL "ON")
 
 include(GNUInstallDirs)
 
@@ -226,7 +227,8 @@ if(PHASAR_IN_TREE OR NEED_LIBCLANG_COMPONENT_LIBS)
     clangASTMatchers
     clangLex
     clangBasic
-    LLVMFrontendOpenMP)
+    LLVMFrontendOpenMP
+          )
 endif()
 if (NOT PHASAR_IN_TREE)
   # Only search for clang if we build out of tree
