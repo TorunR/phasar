@@ -56,7 +56,8 @@ bool is_iwyu_available() {
         (WEXITSTATUS(std::system("iwyu_tool.py --help")) == 0) &&
         (WEXITSTATUS(std::system("fix_includes.py --help")) == 0);
     if (!available) {
-      std::cout << "iwyu or fix_include tool not found. Skipping header cleanup"
+      std::cerr << "iwyu_tool.py or fix_includes.py tool not found. Skipping "
+                   "header cleanup"
                 << std::endl;
     }
     return available;
